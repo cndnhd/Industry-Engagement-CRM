@@ -37,7 +37,13 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: node-app
-          path: web
+          path: |
+            web/.next
+            web/node_modules
+            web/package.json
+            web/package-lock.json
+            web/next.config.ts
+            web/public
 
   deploy:
     runs-on: ubuntu-latest
@@ -51,7 +57,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: node-app
-          path: .
+          path: web
       
       - name: Login to Azure
         uses: azure/login@v2
