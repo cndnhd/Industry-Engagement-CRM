@@ -1,0 +1,11 @@
+OrganizationName,Website,HeadquartersCity,HeadquartersState,Industry,OrgType,OwnershipType,GrowthStage,PriorityLevel,EmployeeCount,AnnualRevenue
+Northrop Grumman,https://www.northropgrumman.com,Falls Church,VA,Aerospace & Defense,Corporation,Public,Mature,Tier 1 — Strategic,90000,36600000000
+Boeing,https://www.boeing.com,Arlington,VA,Aerospace & Defense,Corporation,Public,Mature,Tier 1 — Strategic,150000,66600000000
+Garmin,https://www.garmin.com,Olathe,KS,Technology / Navigation,Corporation,Public,Mature,Tier 2 — High,19500,5230000000
+Burns & McDonnell,https://www.burnsmcd.com,Kansas City,MO,Engineering & Construction,Corporation,Private,Expansion,Tier 2 — High,12000,6000000000
+Black & Veatch,https://www.bv.com,Overland Park,KS,Engineering & Construction,Corporation,Private,Mature,Tier 3 — Medium,10000,4200000000
+Cerner (Oracle Health),https://www.oracle.com/health,Kansas City,MO,Health IT,Corporation,Public,Mature,Tier 2 — High,28000,5800000000
+MU Research Reactor,https://www.murr.missouri.edu,Columbia,MO,Research / Nuclear,Research Lab,Government,Mature,Tier 1 — Strategic,120,
+Acme Robotics,https://www.acmerobotics.example,St. Louis,MO,Robotics / Autonomous,Startup,Private,Early Stage,Tier 4 — Low,45,3500000
+Missouri Technology Corporation,https://www.missouritechnology.com,Columbia,MO,Economic Development,Non-Profit,Government,Mature,Tier 3 — Medium,25,
+Leidos,https://www.leidos.com,Reston,VA,IT / Defense,Corporation,Public,Mature,Tier 2 — High,47000,15400000000

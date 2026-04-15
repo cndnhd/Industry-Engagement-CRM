@@ -1,0 +1,168 @@
+TableName,ValueName,SortOrder
+OrgTypes,Corporation,
+OrgTypes,Non-Profit,
+OrgTypes,Government Agency,
+OrgTypes,Government Contractor,
+OrgTypes,Startup,
+OrgTypes,Small Business,
+OrgTypes,University / Academic,
+OrgTypes,Research Lab,
+OrgTypes,Foundation,
+OrgTypes,Trade Association,
+OrgTypes,Other,
+OwnershipTypes,Public,
+OwnershipTypes,Private,
+OwnershipTypes,Government,
+OwnershipTypes,Non-Profit,
+OwnershipTypes,Cooperative,
+OwnershipTypes,Other,
+GrowthStages,Startup / Seed,1
+GrowthStages,Early Stage,2
+GrowthStages,Growth,3
+GrowthStages,Expansion,4
+GrowthStages,Mature,5
+GrowthStages,Decline / Restructuring,6
+PriorityLevels,Tier 1 — Strategic,1
+PriorityLevels,Tier 2 — High,2
+PriorityLevels,Tier 3 — Medium,3
+PriorityLevels,Tier 4 — Low,4
+PriorityLevels,Tier 5 — Inactive / Watch,5
+RelationshipLevels,Strategic Partner,1
+RelationshipLevels,Active Relationship,2
+RelationshipLevels,Developing,3
+RelationshipLevels,Prospect,4
+RelationshipLevels,Dormant,5
+RelationshipLevels,Lost / Inactive,6
+ContractorRoles,Prime Contractor,
+ContractorRoles,Sub-Contractor,
+ContractorRoles,Consultant,
+ContractorRoles,Teaming Partner,
+ContractorRoles,SBIR/STTR Partner,
+ContractorRoles,Vendor,
+ContractorRoles,Not Applicable,
+ContractorRoles,Other,
+FunctionalAreas,Engineering,
+FunctionalAreas,Research & Development,
+FunctionalAreas,Human Resources / Talent,
+FunctionalAreas,Executive Leadership,
+FunctionalAreas,Government Relations,
+FunctionalAreas,Corporate Social Responsibility,
+FunctionalAreas,Procurement / Supply Chain,
+FunctionalAreas,Finance,
+FunctionalAreas,Marketing / Communications,
+FunctionalAreas,Legal / Compliance,
+FunctionalAreas,Information Technology,
+FunctionalAreas,Operations,
+FunctionalAreas,Sales / Business Development,
+FunctionalAreas,Product Management,
+FunctionalAreas,Other,
+InfluenceLevels,Decision Maker,1
+InfluenceLevels,Strong Influencer,2
+InfluenceLevels,Moderate Influencer,3
+InfluenceLevels,Limited Influence,4
+InfluenceLevels,Unknown,5
+RiskToleranceLevels,Very High,1
+RiskToleranceLevels,High,2
+RiskToleranceLevels,Moderate,3
+RiskToleranceLevels,Low,4
+RiskToleranceLevels,Very Low,5
+RiskToleranceLevels,Unknown,6
+PersonalOrientations,Relationship-Driven,
+PersonalOrientations,Task-Oriented,
+PersonalOrientations,Data-Driven / Analytical,
+PersonalOrientations,Visionary / Strategic,
+PersonalOrientations,Community-Focused,
+PersonalOrientations,Innovation-Focused,
+PersonalOrientations,Unknown,
+OutreachMotions,Inbound Inquiry,
+OutreachMotions,Cold Outreach,
+OutreachMotions,Warm Introduction,
+OutreachMotions,Conference / Event,
+OutreachMotions,Alumni Connection,
+OutreachMotions,Faculty Referral,
+OutreachMotions,Government Program,
+OutreachMotions,Career Fair,
+OutreachMotions,Advisory Board Meeting,
+OutreachMotions,Other,
+EngagementTypes,In-Person Meeting,
+EngagementTypes,Virtual Meeting,
+EngagementTypes,Phone Call,
+EngagementTypes,Email Exchange,
+EngagementTypes,Site Visit,
+EngagementTypes,Campus Visit,
+EngagementTypes,Conference,
+EngagementTypes,Career Fair,
+EngagementTypes,Workshop,
+EngagementTypes,Guest Lecture,
+EngagementTypes,Advisory Board,
+EngagementTypes,Sponsored Research Discussion,
+EngagementTypes,Philanthropy Discussion,
+EngagementTypes,MOU / Agreement Signing,
+EngagementTypes,Other,
+JourneyStages,Identified,1
+JourneyStages,Contacted,2
+JourneyStages,Engaged,3
+JourneyStages,Active Partnership,4
+JourneyStages,Strategic Alliance,5
+JourneyStages,Dormant,6
+JourneyStages,Lost,7
+OpportunityTypes,Sponsored Research,
+OpportunityTypes,Philanthropy / Gift,
+OpportunityTypes,Capstone Project,
+OpportunityTypes,Internship / Co-op Program,
+OpportunityTypes,Recruitment Partnership,
+OpportunityTypes,Advisory Board Seat,
+OpportunityTypes,Equipment Donation,
+OpportunityTypes,Licensing / IP,
+OpportunityTypes,Joint Venture,
+OpportunityTypes,Other,
+OpportunityStages,Identified,1
+OpportunityStages,Qualification,2
+OpportunityStages,Proposal / Negotiation,3
+OpportunityStages,Verbal Commitment,4
+OpportunityStages,Closed Won,5
+OpportunityStages,Closed Lost,6
+OpportunityStages,On Hold,7
+OpportunityStatuses,Active,
+OpportunityStatuses,Paused,
+OpportunityStatuses,Won,
+OpportunityStatuses,Lost,
+OpportunityStatuses,Cancelled,
+GovernmentAlignmentTypes,DoD STEM / MEEP,
+GovernmentAlignmentTypes,NSF Partnership,
+GovernmentAlignmentTypes,DOE Lab Collaboration,
+GovernmentAlignmentTypes,NIH Research Affiliation,
+GovernmentAlignmentTypes,SBIR / STTR,
+GovernmentAlignmentTypes,State Economic Development,
+GovernmentAlignmentTypes,Federal Earmark / Appropriation,
+GovernmentAlignmentTypes,Defense Industrial Base,
+GovernmentAlignmentTypes,Intelligence Community,
+GovernmentAlignmentTypes,NASA Collaboration,
+GovernmentAlignmentTypes,Other Federal,
+GovernmentAlignmentTypes,Other State / Local,
+StrategicTags,Cybersecurity,
+StrategicTags,Artificial Intelligence / ML,
+StrategicTags,Autonomous Systems,
+StrategicTags,Advanced Manufacturing,
+StrategicTags,Energy / Sustainability,
+StrategicTags,Biotechnology,
+StrategicTags,Microelectronics,
+StrategicTags,Quantum Computing,
+StrategicTags,Space / Aerospace,
+StrategicTags,Supply Chain / Logistics,
+StrategicTags,Data Science / Analytics,
+StrategicTags,5G / Telecommunications,
+StrategicTags,Health Technology,
+StrategicTags,Workforce Development,
+StrategicTags,Diversity & Inclusion Partner,
+StrategicTags,Regional Economic Driver,
+LinkageRoles,Principal Investigator,
+LinkageRoles,Co-PI,
+LinkageRoles,Advisory Board Liaison,
+LinkageRoles,Capstone Mentor,
+LinkageRoles,Industry Speaker,
+LinkageRoles,Research Collaborator,
+LinkageRoles,Consultant,
+LinkageRoles,Thesis Advisor,
+LinkageRoles,Program Director,
+LinkageRoles,Other,
