@@ -28,8 +28,6 @@ const LOOKUP_WHITELIST: Record<
   linkageRoles: { table: 'LinkageRoles', idCol: 'LinkageRoleID', nameCol: 'LinkageRoleName' },
 };
 
-export { LOOKUP_WHITELIST };
-
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ table: string }> }) {
   try {
     const { table: tableKey } = await params;
