@@ -75,10 +75,17 @@ function matchesFilter<T>(item: T, filter: ActiveFilter, col: GridColumn<T>): bo
   }
 }
 
+export type GridPreset = {
+  filters: ActiveFilter[];
+  search: string;
+  columnVisibility?: Record<string, boolean> | null;
+};
+
 export function useGridState<T>(
   data: T[],
   columns: GridColumn<T>[],
   entityName: string,
+  options?: { preset?: GridPreset | null; presetKey?: string | number | null },
 ) {
   const [columnVisibility, setColumnVisibility] = useState<Record<string, boolean>>(
     () => loadVisibility(entityName, columns as GridColumn<unknown>[]),
@@ -87,6 +94,23 @@ export function useGridState<T>(
   const [activeFilters, setActiveFilters] = useState<ActiveFilter[]>([]);
   const [sortKey, setSortKey] = useState<string | null>(null);
   const [sortDir, setSortDir] = useState<SortDir>(null);
+
+  useEffect(() => {
+    const p = options?.preset;
+    const key = options?.presetKey;
+    if (p == null || key == null) return;
+    setActiveFilters(p.filters);
+    setSearchQuery(p.search);
+    if (p.columnVisibility && Object.keys(p.columnVisibility).length > 0) {
+      setColumnVisibility((prev) => {
+        const next = { ...prev };
+        for (const [k, v] of Object.entries(p.columnVisibility!)) {
+          next[k] = v;
+        }
+        return next;
+      });
+    }
+  }, [options?.presetKey]);
 
   useEffect(() => {
     saveVisibility(entityName, columnVisibility);
@@ -176,18 +200,24 @@ export function useGridState<T>(
     return copy;
   }, [filtered, sortKey, sortDir, columns]);
 
+  const setFilters = useCallback((filters: ActiveFilter[]) => {
+    setActiveFilters(filters);
+  }, []);
+
   return {
     processedData: sorted,
     filteredData: filtered,
     totalCount: data.length,
     filteredCount: filtered.length,
     columnVisibility,
+    setColumnVisibility: setColumnVisibility,
     toggleColumn,
     setAllColumns,
     visibleColumns,
     searchQuery,
     setSearchQuery,
     activeFilters,
+    setActiveFilters: setFilters,
     addFilter,
     removeFilter,
     clearFilters,

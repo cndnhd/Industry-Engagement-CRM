@@ -1,7 +1,21 @@
 // API client — all data comes from Azure SQL via Next.js API routes.
 // No mock data fallbacks.
 
-import type { Organization, Contact, Faculty, EngagementEvent, Opportunity, OrganizationScore, LookupItem } from '@/types';
+import type {
+  Organization,
+  Contact,
+  Faculty,
+  EngagementEvent,
+  Opportunity,
+  OrganizationScore,
+  LookupItem,
+  UserList,
+  UserListColumn,
+  ListMembershipRow,
+  StrategicRollup,
+  RollupComponent,
+  RollupContactRow,
+} from '@/types';
 
 const BASE = '/api';
 
@@ -30,6 +44,19 @@ async function post<T>(path: string, body: Record<string, unknown>): Promise<T> 
 async function put<T>(path: string, body: Record<string, unknown>): Promise<T> {
   const res = await fetch(`${BASE}${path}`, {
     method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const b = await res.json().catch(() => ({}));
+    throw new Error(b.error ?? `API error ${res.status}`);
+  }
+  return res.json();
+}
+
+async function patch<T>(path: string, body: Record<string, unknown>): Promise<T> {
+  const res = await fetch(`${BASE}${path}`, {
+    method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   });
@@ -72,6 +99,61 @@ export const fetchContacts = () => get<Contact[]>('/contacts');
 export const createContact = (body: Record<string, unknown>) => post<Contact>('/contacts', body);
 export const updateContact = (id: number, body: Record<string, unknown>) => put<Contact>(`/contacts/${id}`, body);
 export const deleteContact = (id: number) => del(`/contacts/${id}`);
+
+// User lists
+export const fetchUserLists = (opts?: { q?: string; entityType?: 'C' | 'O' }) => {
+  const p = new URLSearchParams();
+  if (opts?.q) p.set('q', opts.q);
+  if (opts?.entityType) p.set('entityType', opts.entityType);
+  const q = p.toString();
+  return get<UserList[]>(`/lists${q ? `?${q}` : ''}`);
+};
+export const createUserList = (body: Record<string, unknown>) => post<UserList>('/lists', body);
+export const fetchUserList = (id: number) => get<UserList>(`/lists/${id}`);
+export const updateUserList = (id: number, body: Record<string, unknown>) => patch<UserList>(`/lists/${id}`, body);
+export const deleteUserList = (id: number) => del(`/lists/${id}`);
+export const fetchListColumns = (listId: number) => get<UserListColumn[]>(`/lists/${listId}/columns`);
+export const createListColumn = (listId: number, body: Record<string, unknown>) =>
+  post<UserListColumn>(`/lists/${listId}/columns`, body);
+export const updateListColumn = (listId: number, columnId: number, body: Record<string, unknown>) =>
+  patch<UserListColumn>(`/lists/${listId}/columns/${columnId}`, body);
+export const deleteListColumn = (listId: number, columnId: number) => del(`/lists/${listId}/columns/${columnId}`);
+export const fetchListMemberships = (listId: number) =>
+  get<{ memberships: ListMembershipRow[] }>(`/lists/${listId}/memberships`).then((r) => r.memberships);
+export const addListMembership = (listId: number, body: { ContactID?: number; OrganizationID?: number }) =>
+  post<Record<string, unknown>>(`/lists/${listId}/memberships`, body);
+export const removeListMembership = (listId: number, membershipId: number) =>
+  del(`/lists/${listId}/memberships/${membershipId}`);
+export const patchListMembershipCells = (
+  listId: number,
+  membershipId: number,
+  cells: { columnId: number; completionLevel: number }[],
+) => patch<{ success: boolean }>(`/lists/${listId}/memberships/${membershipId}/cells`, { cells });
+
+// Strategic rollups
+export const fetchStrategicRollups = (opts?: { q?: string }) => {
+  const q = opts?.q ? `?q=${encodeURIComponent(opts.q)}` : '';
+  return get<StrategicRollup[]>(`/rollups${q}`);
+};
+export const createStrategicRollup = (body: Record<string, unknown>) => post<StrategicRollup>('/rollups', body);
+export const fetchStrategicRollup = (id: number) => get<StrategicRollup>(`/rollups/${id}`);
+export const updateStrategicRollup = (id: number, body: Record<string, unknown>) => patch<StrategicRollup>(`/rollups/${id}`, body);
+export const deleteStrategicRollup = (id: number) => del(`/rollups/${id}`);
+export const fetchRollupComponents = (rollupId: number) =>
+  get<RollupComponent[]>(`/rollups/${rollupId}/components`);
+export const createRollupComponent = (rollupId: number, body: Record<string, unknown>) =>
+  post<RollupComponent>(`/rollups/${rollupId}/components`, body);
+export const updateRollupComponent = (rollupId: number, componentId: number, body: Record<string, unknown>) =>
+  patch<RollupComponent>(`/rollups/${rollupId}/components/${componentId}`, body);
+export const deleteRollupComponent = (rollupId: number, componentId: number) =>
+  del(`/rollups/${rollupId}/components/${componentId}`);
+export const fetchRollupContacts = (rollupId: number) => get<RollupContactRow[]>(`/rollups/${rollupId}/contacts`);
+export const addRollupContact = (rollupId: number, body: Record<string, unknown>) =>
+  post<Record<string, unknown>>(`/rollups/${rollupId}/contacts`, body);
+export const updateRollupContact = (rollupId: number, contactId: number, body: Record<string, unknown>) =>
+  patch<Record<string, unknown>>(`/rollups/${rollupId}/contacts/${contactId}`, body);
+export const removeRollupContact = (rollupId: number, contactId: number) =>
+  del(`/rollups/${rollupId}/contacts/${contactId}`);
 
 // Faculty
 export const fetchFaculty = () => get<Faculty[]>('/faculty');

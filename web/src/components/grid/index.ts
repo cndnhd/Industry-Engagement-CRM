@@ -1,5 +1,6 @@
 export { default as EnhancedDataGrid } from './EnhancedDataGrid';
 export type { EnhancedDataGridProps } from './EnhancedDataGrid';
+export type { GridPreset } from './useGridState';
 export { default as RollupPanel } from './RollupPanel';
 export { default as ImportDialog } from './ImportDialog';
 export type { ImportConfig, ImportRowResult } from './ImportDialog';

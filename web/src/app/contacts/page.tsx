@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import type { Contact, Organization, LookupItem } from '@/types';
+import type { Contact, Organization, LookupItem, UserList, StrategicRollup, RollupComponent } from '@/types';
 import {
   fetchContacts,
   createContact,
@@ -10,6 +10,11 @@ import {
   fetchOrganizations,
   loadLookup,
   resolveName,
+  fetchUserLists,
+  addListMembership,
+  fetchStrategicRollups,
+  fetchRollupComponents,
+  addRollupContact,
 } from '@/lib/api';
 import PageHeader from '@/components/ui/PageHeader';
 import Modal from '@/components/ui/Modal';
@@ -37,6 +42,13 @@ export default function ContactsPage() {
   const [editSaving, setEditSaving] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'destructive' } | null>(null);
 
+  const [contactLists, setContactLists] = useState<UserList[]>([]);
+  const [strategicRollups, setStrategicRollups] = useState<StrategicRollup[]>([]);
+  const [listPickId, setListPickId] = useState('');
+  const [rollupPickId, setRollupPickId] = useState('');
+  const [rollupCompPickId, setRollupCompPickId] = useState('');
+  const [rollupComponents, setRollupComponents] = useState<RollupComponent[]>([]);
+
   const reload = useCallback(async () => {
     try {
       const [c, o, fa, il, rt, po] = await Promise.all([
@@ -61,6 +73,32 @@ export default function ContactsPage() {
   }, []);
 
   useEffect(() => { reload(); }, [reload]);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const [lists, rollups] = await Promise.all([
+          fetchUserLists({ entityType: 'C' }),
+          fetchStrategicRollups(),
+        ]);
+        setContactLists(lists);
+        setStrategicRollups(rollups);
+      } catch {
+        /* lists/rollups optional */
+      }
+    })();
+  }, []);
+
+  useEffect(() => {
+    if (!rollupPickId) {
+      setRollupComponents([]);
+      setRollupCompPickId('');
+      return;
+    }
+    fetchRollupComponents(Number(rollupPickId))
+      .then(setRollupComponents)
+      .catch(() => setRollupComponents([]));
+  }, [rollupPickId]);
 
   useEffect(() => {
     if (!toast) return;
@@ -243,6 +281,37 @@ export default function ContactsPage() {
     }
   }
 
+  async function handleAddToList() {
+    if (!selected || !listPickId) return;
+    try {
+      await addListMembership(Number(listPickId), { ContactID: selected.ContactID });
+      setToast({ message: 'Added to list', type: 'success' });
+      setListPickId('');
+    } catch (e) {
+      setToast({
+        message: e instanceof Error ? e.message : 'Could not add to list',
+        type: 'error',
+      });
+    }
+  }
+
+  async function handleAddToRollup() {
+    if (!selected || !rollupPickId) return;
+    try {
+      const body: Record<string, unknown> = { ContactID: selected.ContactID };
+      if (rollupCompPickId) body.ComponentID = Number(rollupCompPickId);
+      await addRollupContact(Number(rollupPickId), body);
+      setToast({ message: 'Added to rollup', type: 'success' });
+      setRollupPickId('');
+      setRollupCompPickId('');
+    } catch (e) {
+      setToast({
+        message: e instanceof Error ? e.message : 'Could not add to rollup',
+        type: 'error',
+      });
+    }
+  }
+
   async function handleDelete(id: number) {
     if (!confirm('Are you sure you want to delete this contact? This cannot be undone.')) return;
     try {
@@ -302,6 +371,84 @@ export default function ContactsPage() {
               <Detail label="Clearance Familiarity" value={selected.ClearanceFamiliarity ? 'Yes' : 'No'} />
               {selected.Notes && <div className="col-span-2"><Detail label="Notes" value={selected.Notes} /></div>}
             </dl>
+            <div className="mt-6 rounded-xl border border-gray-200 bg-gray-50/80 p-4">
+              <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Add to collection</p>
+              <div className="mt-3 grid gap-4 sm:grid-cols-2">
+                <div>
+                  <label htmlFor="contact-add-list" className="text-xs text-gray-600">
+                    List
+                  </label>
+                  <div className="mt-1 flex flex-wrap gap-2">
+                    <select
+                      id="contact-add-list"
+                      className={`${selectClass} min-w-0 flex-1`}
+                      value={listPickId}
+                      onChange={(e) => setListPickId(e.target.value)}
+                    >
+                      <option value="">Select list…</option>
+                      {contactLists.map((l) => (
+                        <option key={l.ListID} value={l.ListID}>
+                          {l.Name}
+                        </option>
+                      ))}
+                    </select>
+                    <button
+                      type="button"
+                      disabled={!listPickId}
+                      onClick={handleAddToList}
+                      className="rounded-lg bg-white px-3 py-2 text-sm font-medium text-indigo-700 ring-1 ring-indigo-200 hover:bg-indigo-50 disabled:opacity-50"
+                    >
+                      Add
+                    </button>
+                  </div>
+                </div>
+                <div>
+                  <label htmlFor="contact-add-rollup" className="text-xs text-gray-600">
+                    Strategic rollup
+                  </label>
+                  <div className="mt-1 flex flex-col gap-2">
+                    <div className="flex flex-wrap gap-2">
+                      <select
+                        id="contact-add-rollup"
+                        className={`${selectClass} min-w-0 flex-1`}
+                        value={rollupPickId}
+                        onChange={(e) => setRollupPickId(e.target.value)}
+                      >
+                        <option value="">Select rollup…</option>
+                        {strategicRollups.map((r) => (
+                          <option key={r.RollupID} value={r.RollupID}>
+                            {r.Name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    {rollupComponents.length > 0 && (
+                      <select
+                        className={selectClass}
+                        aria-label="Component"
+                        value={rollupCompPickId}
+                        onChange={(e) => setRollupCompPickId(e.target.value)}
+                      >
+                        <option value="">Component (optional)</option>
+                        {rollupComponents.map((c) => (
+                          <option key={c.ComponentID} value={c.ComponentID}>
+                            {c.Label}
+                          </option>
+                        ))}
+                      </select>
+                    )}
+                    <button
+                      type="button"
+                      disabled={!rollupPickId}
+                      onClick={handleAddToRollup}
+                      className="w-fit rounded-lg bg-white px-3 py-2 text-sm font-medium text-indigo-700 ring-1 ring-indigo-200 hover:bg-indigo-50 disabled:opacity-50"
+                    >
+                      Add to rollup
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
             <div className="mt-6 flex items-center justify-between">
               <button type="button" onClick={() => handleDelete(selected.ContactID)} className="rounded-lg border border-red-200 bg-white px-4 py-2 text-sm font-medium text-red-600 hover:bg-red-50 transition-colors">Delete</button>
               <button onClick={() => openEditForm(selected)} className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-indigo-500 transition-colors">Edit</button>

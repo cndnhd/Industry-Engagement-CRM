@@ -1,14 +1,20 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, type MutableRefObject } from 'react';
 import type { GridColumn, RollupDimension, RollupAggregate } from './types';
-import { useGridState } from './useGridState';
+import { useGridState, type GridPreset } from './useGridState';
 import ColumnMenu from './ColumnMenu';
 import GridSearch from './GridSearch';
 import GridFilterBar from './GridFilterBar';
 import ExportButton from './ExportButton';
 import RollupPanel from './RollupPanel';
 import ImportDialog, { type ImportConfig } from './ImportDialog';
+
+export type GridSnapshot = {
+  activeFilters: import('./types').ActiveFilter[];
+  searchQuery: string;
+  columnVisibility: Record<string, boolean>;
+};
 
 export type EnhancedDataGridProps<T> = {
   data: T[];
@@ -27,6 +33,11 @@ export type EnhancedDataGridProps<T> = {
   showRollup?: boolean;
   showColumnToggle?: boolean;
   headerAction?: React.ReactNode;
+  /** When set with presetKey, hydrates filters/search/column visibility (e.g. saved list view). */
+  listPreset?: GridPreset | null;
+  presetKey?: string | number | null;
+  /** Updated on each render with current filter/column state for “save view” actions. */
+  gridSnapshotRef?: MutableRefObject<GridSnapshot | null>;
 };
 
 function EnhancedDataGrid<T>({
@@ -46,9 +57,21 @@ function EnhancedDataGrid<T>({
   showRollup = true,
   showColumnToggle = true,
   headerAction,
+  listPreset = null,
+  presetKey = null,
+  gridSnapshotRef,
 }: EnhancedDataGridProps<T>) {
-  const grid = useGridState(data, columns, entityName);
+  const grid = useGridState(data, columns, entityName, { preset: listPreset, presetKey });
   const [showImportDialog, setShowImportDialog] = useState(false);
+
+  useEffect(() => {
+    if (!gridSnapshotRef) return;
+    gridSnapshotRef.current = {
+      activeFilters: grid.activeFilters,
+      searchQuery: grid.searchQuery,
+      columnVisibility: grid.columnVisibility,
+    };
+  });
 
   return (
     <div className="space-y-4">

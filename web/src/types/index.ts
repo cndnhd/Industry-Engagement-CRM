@@ -151,6 +151,66 @@ export interface LookupItem {
   sortOrder?: number;
 }
 
+/** Saved user list (contacts or organizations). */
+export interface UserList {
+  ListID: number;
+  Name: string;
+  EntityType: 'C' | 'O';
+  FilterJson: string | null;
+  VisibleColumnKeysJson: string | null;
+  CreatedAt?: string;
+  UpdatedAt?: string;
+}
+
+export interface UserListColumn {
+  ColumnID: number;
+  ListID: number;
+  Label: string;
+  SortOrder: number;
+  ProcessTier: number;
+  CreatedAt?: string;
+  UpdatedAt?: string;
+}
+
+export interface ListMembershipRow {
+  membershipId: number;
+  contactId?: number;
+  organizationId?: number;
+  cells: Record<number, number>;
+}
+
+export interface StrategicRollup {
+  RollupID: number;
+  Name: string;
+  Description: string | null;
+  CreatedAt?: string;
+  UpdatedAt?: string;
+}
+
+export interface RollupComponent {
+  ComponentID: number;
+  RollupID: number;
+  Label: string;
+  SortOrder: number;
+  Notes: string | null;
+  CreatedAt?: string;
+  UpdatedAt?: string;
+}
+
+export interface RollupContactRow {
+  RollupID: number;
+  ContactID: number;
+  ComponentID: number | null;
+  Notes: string | null;
+  FirstName: string;
+  LastName: string;
+  Email?: string;
+  Title?: string;
+  OrganizationID?: number;
+  CreatedAt?: string;
+  UpdatedAt?: string;
+}
+
 export type LookupTable =
   | 'departments' | 'facultyTitles' | 'contractorRoles' | 'functionalAreas'
   | 'influenceLevels' | 'riskToleranceLevels' | 'personalOrientations'
