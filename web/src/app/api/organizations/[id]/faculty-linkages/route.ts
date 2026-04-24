@@ -24,3 +24,47 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }
+
+export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  try {
+    const { id } = await params;
+    const body = await req.json();
+    if (!body.FacultyID) return NextResponse.json({ error: 'FacultyID is required' }, { status: 400 });
+    const rows = await query(
+      `INSERT INTO dbo.OrganizationFacultyLinkages (OrganizationID, FacultyID, LinkageRoleID, ActiveFlag, Notes)
+       OUTPUT INSERTED.OrganizationFacultyLinkageID AS id
+       VALUES (@orgId, @facultyId, @roleId, @active, @notes)`,
+      {
+        orgId: Number(id),
+        facultyId: Number(body.FacultyID),
+        roleId: body.LinkageRoleID ? Number(body.LinkageRoleID) : null,
+        active: body.ActiveFlag ?? true,
+        notes: body.Notes ?? null,
+      },
+    );
+    return NextResponse.json(rows[0], { status: 201 });
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Database error';
+    if (message.includes('UNIQUE') || message.includes('duplicate')) {
+      return NextResponse.json({ error: 'This faculty linkage already exists' }, { status: 409 });
+    }
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
+}
+
+export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  try {
+    const { id } = await params;
+    const body = await req.json();
+    const linkageId = body.linkageId;
+    if (!linkageId) return NextResponse.json({ error: 'linkageId is required' }, { status: 400 });
+    await query(
+      `DELETE FROM dbo.OrganizationFacultyLinkages WHERE OrganizationFacultyLinkageID = @linkageId AND OrganizationID = @orgId`,
+      { linkageId: Number(linkageId), orgId: Number(id) },
+    );
+    return NextResponse.json({ success: true });
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Database error';
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
+}

@@ -1,10 +1,20 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { fetchAlignmentsSummary } from '@/lib/api';
+import { useState, useEffect, useCallback } from 'react';
+import Link from 'next/link';
+import {
+  fetchAlignmentsSummary,
+  fetchAlignmentOrganizations,
+  addAlignmentOrganization,
+  removeAlignmentOrganization,
+  fetchOrganizations,
+} from '@/lib/api';
+import type { Organization } from '@/types';
 import PageHeader from '@/components/ui/PageHeader';
+import Badge from '@/components/ui/Badge';
 
 type AlignmentSummary = { id: number; name: string; orgCount: number };
+type AlignmentOrg = { OrganizationID: number; OrganizationName: string; City?: string; State?: string; EngagementStatus?: string; AssignedOwner?: string };
 
 const GOV_PALETTE = ['slate', 'blue', 'indigo'] as const;
 type GovColor = (typeof GOV_PALETTE)[number];
@@ -24,12 +34,101 @@ export default function AlignmentsPage() {
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<AlignmentSummary | null>(null);
 
-  useEffect(() => {
-    fetchAlignmentsSummary()
-      .then(data => setAlignments(data))
-      .catch(e => console.error('Failed to load alignments', e))
-      .finally(() => setLoading(false));
+  const [alignOrgs, setAlignOrgs] = useState<AlignmentOrg[]>([]);
+  const [alignOrgsLoading, setAlignOrgsLoading] = useState(false);
+
+  const [allOrgs, setAllOrgs] = useState<Organization[]>([]);
+  const [showAddOrg, setShowAddOrg] = useState(false);
+  const [orgSearch, setOrgSearch] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [toast, setToast] = useState<string | null>(null);
+
+  const loadAlignments = useCallback(async () => {
+    try {
+      const data = await fetchAlignmentsSummary();
+      setAlignments(data);
+    } catch (e) {
+      console.error('Failed to load alignments', e);
+    } finally {
+      setLoading(false);
+    }
   }, []);
+
+  useEffect(() => { loadAlignments(); }, [loadAlignments]);
+
+  useEffect(() => {
+    if (toast) {
+      const t = setTimeout(() => setToast(null), 3000);
+      return () => clearTimeout(t);
+    }
+  }, [toast]);
+
+  async function handleSelectAlignment(a: AlignmentSummary) {
+    if (selected?.id === a.id) {
+      setSelected(null);
+      setAlignOrgs([]);
+      setShowAddOrg(false);
+      return;
+    }
+    setSelected(a);
+    setShowAddOrg(false);
+    setAlignOrgsLoading(true);
+    try {
+      const orgs = await fetchAlignmentOrganizations(a.id);
+      setAlignOrgs(orgs);
+    } catch {
+      setAlignOrgs([]);
+    }
+    setAlignOrgsLoading(false);
+  }
+
+  async function openAddOrg() {
+    setShowAddOrg(true);
+    setOrgSearch('');
+    if (allOrgs.length === 0) {
+      try {
+        const orgs = await fetchOrganizations();
+        setAllOrgs(orgs);
+      } catch { /* ignore */ }
+    }
+  }
+
+  const assignedOrgIds = new Set(alignOrgs.map(o => o.OrganizationID));
+  const filteredOrgs = allOrgs
+    .filter(o => !assignedOrgIds.has(o.OrganizationID))
+    .filter(o => !orgSearch || o.OrganizationName.toLowerCase().includes(orgSearch.toLowerCase()));
+
+  async function handleAddOrg(orgId: number) {
+    if (!selected) return;
+    setSaving(true);
+    try {
+      await addAlignmentOrganization(selected.id, orgId);
+      const orgs = await fetchAlignmentOrganizations(selected.id);
+      setAlignOrgs(orgs);
+      await loadAlignments();
+      setSelected(prev => prev ? { ...prev, orgCount: orgs.length } : prev);
+      setToast('Organization added to alignment');
+    } catch (e) {
+      setToast(e instanceof Error ? e.message : 'Failed to add');
+    }
+    setSaving(false);
+  }
+
+  async function handleRemoveOrg(orgId: number) {
+    if (!selected) return;
+    setSaving(true);
+    try {
+      await removeAlignmentOrganization(selected.id, orgId);
+      const orgs = await fetchAlignmentOrganizations(selected.id);
+      setAlignOrgs(orgs);
+      await loadAlignments();
+      setSelected(prev => prev ? { ...prev, orgCount: orgs.length } : prev);
+      setToast('Organization removed from alignment');
+    } catch (e) {
+      setToast(e instanceof Error ? e.message : 'Failed to remove');
+    }
+    setSaving(false);
+  }
 
   if (loading) {
     return (
@@ -44,6 +143,12 @@ export default function AlignmentsPage() {
     <div className="space-y-6">
       <PageHeader title="Government Alignments" />
 
+      {toast && (
+        <div className="rounded-lg bg-blue-50 px-4 py-2 text-sm text-blue-700 ring-1 ring-blue-200">
+          {toast}
+        </div>
+      )}
+
       {alignments.length === 0 ? (
         <div className="rounded-xl bg-white p-12 shadow-sm ring-1 ring-gray-950/5 text-center text-sm text-gray-400">
           No government alignments found.
@@ -57,7 +162,7 @@ export default function AlignmentsPage() {
             return (
               <button
                 key={a.id}
-                onClick={() => setSelected(isSelected ? null : a)}
+                onClick={() => handleSelectAlignment(a)}
                 className={`text-left rounded-xl p-5 shadow-sm ring-1 transition-all ${
                   isSelected
                     ? `ring-2 ${styles.ring} ${styles.bg}`
@@ -83,19 +188,110 @@ export default function AlignmentsPage() {
       )}
 
       {selected && (
-        <div className="rounded-xl bg-white p-6 shadow-sm ring-1 ring-gray-950/5">
-          <div className="flex items-center gap-3">
-            <div className="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-slate-100">
-              <svg className="h-5 w-5 text-slate-600" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z" />
-              </svg>
-            </div>
+        <div className="rounded-xl bg-white shadow-sm ring-1 ring-gray-950/5 overflow-hidden">
+          <div className="flex items-center justify-between border-b border-gray-100 px-6 py-4">
             <div>
               <h3 className="text-base font-semibold text-gray-900">{selected.name}</h3>
-              <p className="mt-0.5 text-sm text-gray-600">
-                This alignment is applied to <span className="font-semibold">{selected.orgCount}</span> organization{selected.orgCount !== 1 ? 's' : ''}.
+              <p className="text-sm text-gray-500">
+                {selected.orgCount} organization{selected.orgCount !== 1 ? 's' : ''} aligned
               </p>
             </div>
+            <button
+              onClick={openAddOrg}
+              disabled={saving}
+              className="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+            >
+              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+              </svg>
+              Add Organization
+            </button>
+          </div>
+
+          {showAddOrg && (
+            <div className="border-b border-gray-100 bg-gray-50 px-6 py-4">
+              <input
+                type="text"
+                value={orgSearch}
+                onChange={e => setOrgSearch(e.target.value)}
+                placeholder="Search organizations…"
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+              />
+              <div className="mt-3 max-h-48 overflow-y-auto space-y-1">
+                {filteredOrgs.length === 0 ? (
+                  <p className="text-xs text-gray-400 py-2">
+                    {orgSearch ? 'No matching organizations found.' : 'All organizations are already aligned.'}
+                  </p>
+                ) : (
+                  filteredOrgs.slice(0, 20).map(o => (
+                    <button
+                      key={o.OrganizationID}
+                      onClick={() => handleAddOrg(o.OrganizationID)}
+                      disabled={saving}
+                      className="flex w-full items-center justify-between rounded-lg px-3 py-2 text-sm text-left hover:bg-blue-50 disabled:opacity-50"
+                    >
+                      <div>
+                        <span className="font-medium text-gray-900">{o.OrganizationName}</span>
+                        {(o.City || o.State) && (
+                          <span className="ml-2 text-xs text-gray-400">{[o.City, o.State].filter(Boolean).join(', ')}</span>
+                        )}
+                      </div>
+                      <svg className="h-4 w-4 text-blue-500 flex-shrink-0" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                      </svg>
+                    </button>
+                  ))
+                )}
+              </div>
+            </div>
+          )}
+
+          <div className="px-6 py-4">
+            {alignOrgsLoading ? (
+              <div className="text-sm text-gray-400 py-4 text-center">Loading organizations…</div>
+            ) : alignOrgs.length === 0 ? (
+              <div className="text-sm text-gray-400 py-4 text-center">No organizations assigned to this alignment yet.</div>
+            ) : (
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-gray-100 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="pb-2">Organization</th>
+                    <th className="pb-2">Location</th>
+                    <th className="pb-2">Status</th>
+                    <th className="pb-2">Owner</th>
+                    <th className="pb-2 w-10"></th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-50">
+                  {alignOrgs.map(o => (
+                    <tr key={o.OrganizationID} className="hover:bg-gray-50">
+                      <td className="py-2.5">
+                        <Link href={`/organizations/${o.OrganizationID}`} className="font-medium text-blue-600 hover:text-blue-800">
+                          {o.OrganizationName}
+                        </Link>
+                      </td>
+                      <td className="py-2.5 text-gray-500">{[o.City, o.State].filter(Boolean).join(', ') || '—'}</td>
+                      <td className="py-2.5">
+                        {o.EngagementStatus ? <Badge label={o.EngagementStatus} color={o.EngagementStatus === 'Active' ? 'emerald' : 'slate'} size="sm" /> : '—'}
+                      </td>
+                      <td className="py-2.5 text-gray-500">{o.AssignedOwner || '—'}</td>
+                      <td className="py-2.5">
+                        <button
+                          onClick={() => handleRemoveOrg(o.OrganizationID)}
+                          disabled={saving}
+                          className="rounded p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 disabled:opacity-50"
+                          title="Remove from alignment"
+                        >
+                          <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                          </svg>
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
           </div>
         </div>
       )}

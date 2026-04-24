@@ -23,6 +23,38 @@ export interface Organization {
   ExecutiveSponsor?: boolean;
   CreatedAt?: string;
   UpdatedAt?: string;
+  ParentOrganizationID?: number;
+  BusinessModelType?: string;
+  HQCountry?: string;
+  MissouriPresenceFlag?: boolean;
+  MissouriCities?: string;
+  PrimaryRegion?: string;
+  LinkedInURL?: string;
+  GeneralEmail?: string;
+  MainPhone?: string;
+  AnnualRevenueRange?: string;
+  EmployeeCountRange?: string;
+  NAICSCode?: string;
+  PublicPrivateStatus?: string;
+  PartnershipStageID?: number;
+  EngagementStatus?: string;
+  StrategicFitScore?: number;
+  WorkforceAlignmentScore?: number;
+  ResearchAlignmentScore?: number;
+  PhilanthropyPotentialScore?: number;
+  GovernmentRelationsRelevance?: number;
+  InternshipPotentialFlag?: boolean;
+  HiringPotentialFlag?: boolean;
+  SponsorshipPotentialFlag?: boolean;
+  AdvisoryBoardPotentialFlag?: boolean;
+  ResearchCollaborationPotentialFlag?: boolean;
+  ExecutiveEngagementLevel?: string;
+  AssignedOwner?: string;
+  AssignedTeam?: string;
+  NextActionDate?: string;
+  ArchivedFlag?: boolean;
+  StrategicPriorityLevel?: string;
+  Projects?: string;
 }
 
 export interface Contact {
@@ -43,6 +75,39 @@ export interface Contact {
   Notes?: string;
   CreatedAt?: string;
   UpdatedAt?: string;
+  Prefix?: string;
+  MiddleName?: string;
+  Suffix?: string;
+  PreferredName?: string;
+  Department?: string;
+  SeniorityLevelID?: number;
+  SecondaryEmail?: string;
+  OfficePhone?: string;
+  LinkedInURL?: string;
+  AssistantName?: string;
+  AssistantEmail?: string;
+  City?: string;
+  State?: string;
+  Country?: string;
+  RelationshipOwner?: string;
+  ContactTypeID?: number;
+  PersonaTypeID?: number;
+  DecisionMakerFlag?: boolean;
+  ChampionFlag?: boolean;
+  DonorFlag?: boolean;
+  SpeakerFlag?: boolean;
+  AdvisoryBoardFlag?: boolean;
+  HiringContactFlag?: boolean;
+  InternshipContactFlag?: boolean;
+  ResearchContactFlag?: boolean;
+  LegislativeContactFlag?: boolean;
+  CommunicationPreference?: string;
+  EngagementScore?: number;
+  RelationshipStrength?: number;
+  WarmthStatus?: string;
+  LastContactDate?: string;
+  NextFollowUpDate?: string;
+  ArchivedFlag?: boolean;
 }
 
 export interface Faculty {
@@ -71,6 +136,13 @@ export interface EngagementEvent {
   NextStep?: string;
   NextStepDate?: string;
   CreatedAt?: string;
+  Channel?: string;
+  Direction?: string;
+  Sentiment?: string;
+  EntryVector?: string;
+  ValuePropositionCategory?: string;
+  FacultySource?: string;
+  CompletedFlag?: boolean;
 }
 
 export interface Opportunity {
@@ -143,6 +215,19 @@ export interface JourneyLog {
   ProbabilityScore?: number;
   StrategicImportanceScore?: number;
   Notes?: string;
+  ContactID?: number;
+  EventType?: string;
+  InteractionType?: string;
+  Channel?: string;
+  Direction?: string;
+  Summary?: string;
+  Owner?: string;
+  FollowUpDueDate?: string;
+  CompletedFlag?: boolean;
+  StageMovement?: string;
+  LinkedOpportunityID?: number;
+  Sentiment?: string;
+  StrategicRelevance?: string;
 }
 
 export interface LookupItem {
@@ -211,6 +296,43 @@ export interface RollupContactRow {
   UpdatedAt?: string;
 }
 
+export interface PartnershipStage {
+  PartnershipStageID: number;
+  StageName: string;
+  StageLevel?: number;
+  Description?: string;
+}
+
+export interface EcosystemLink {
+  EcosystemLinkID: number;
+  OrganizationID: number;
+  EntityTypeID: number;
+  RelatedName: string;
+  RelatedOrgID?: number;
+  Notes?: string;
+  CreatedAt?: string;
+}
+
+export interface PartnershipStageHistoryEntry {
+  HistoryID: number;
+  OrganizationID: number;
+  OldStageID?: number;
+  NewStageID: number;
+  TransitionDate: string;
+  Notes?: string;
+  CreatedAt?: string;
+}
+
+export interface SegmentDefinition {
+  SegmentID: number;
+  Name: string;
+  EntityType: string;
+  RulesJson: string;
+  Description?: string;
+  CreatedAt?: string;
+  UpdatedAt?: string;
+}
+
 export type LookupTable =
   | 'departments' | 'facultyTitles' | 'contractorRoles' | 'functionalAreas'
   | 'influenceLevels' | 'riskToleranceLevels' | 'personalOrientations'
@@ -218,7 +340,9 @@ export type LookupTable =
   | 'relationshipLevels' | 'outreachMotions' | 'engagementTypes'
   | 'journeyStages' | 'opportunityTypes' | 'opportunityStages'
   | 'opportunityStatuses' | 'governmentAlignmentTypes' | 'strategicTags'
-  | 'linkageRoles';
+  | 'linkageRoles'
+  | 'industrySectors' | 'subsectors' | 'seniorityLevels' | 'contactTypes'
+  | 'personaTypes' | 'partnershipStages' | 'ecosystemEntityTypes' | 'interestAreas';
 
 export function calculateOverallScore(s: {
   ExecutiveEngagementScore: number;

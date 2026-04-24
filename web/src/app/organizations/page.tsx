@@ -13,6 +13,7 @@ import { EnhancedDataGrid, type GridColumn, type RollupDimension, type RollupAgg
 const LOOKUP_TABLES = [
   'orgTypes', 'ownershipTypes', 'growthStages',
   'priorityLevels', 'contractorRoles', 'relationshipLevels',
+  'partnershipStages',
 ] as const;
 
 type Lookups = Record<string, LookupItem[]>;
@@ -22,6 +23,12 @@ const EMPTY_FORM: Record<string, string> = {
   OrgTypeID: '', OwnershipTypeID: '', GrowthStageID: '',
   PriorityLevelID: '', ContractorRoleID: '', RelationshipLevelID: '',
   Notes: '',
+  LinkedInURL: '', GeneralEmail: '', MainPhone: '',
+  AnnualRevenueRange: '', EmployeeCountRange: '', NAICSCode: '',
+  PublicPrivateStatus: '', BusinessModelType: '',
+  PartnershipStageID: '', EngagementStatus: '', StrategicPriorityLevel: '',
+  AssignedOwner: '', AssignedTeam: '',
+  HQCountry: '', PrimaryRegion: '',
 };
 
 export default function OrganizationsPage() {
@@ -158,6 +165,68 @@ export default function OrganizationsPage() {
       render: (row) => { const t = row.Notes ?? ''; return t.length > 60 ? `${t.slice(0, 60)}…` : t || '—'; },
       getValue: (row) => row.Notes ?? '',
     },
+    {
+      key: 'PartnershipStage',
+      header: 'Partnership Stage',
+      type: 'lookup' as const,
+      sortable: true,
+      filterable: true,
+      defaultVisible: false,
+      filterOptions: (lookups.partnershipStages ?? []).map(i => ({ value: i.name.toLowerCase(), label: i.name })),
+      render: (row) => resolveName(lookups.partnershipStages ?? [], row.PartnershipStageID as number | undefined),
+      getValue: (row) => resolveName(lookups.partnershipStages ?? [], row.PartnershipStageID as number | undefined),
+    },
+    {
+      key: 'StrategicPriority',
+      header: 'Strategic Priority',
+      type: 'string' as const,
+      sortable: true,
+      filterable: true,
+      defaultVisible: false,
+      filterOptions: ['Low', 'Medium', 'High', 'Critical'].map(s => ({ value: s.toLowerCase(), label: s })),
+      render: (row) => {
+        const val = row.StrategicPriorityLevel;
+        if (!val) return '—';
+        const colorMap: Record<string, 'red' | 'amber' | 'slate' | 'purple'> = { Critical: 'red', High: 'amber', Medium: 'slate', Low: 'slate' };
+        return <Badge label={val} color={colorMap[val] ?? 'gray'} />;
+      },
+      getValue: (row) => row.StrategicPriorityLevel ?? '',
+    },
+    {
+      key: 'EngagementStatus',
+      header: 'Engagement Status',
+      type: 'string' as const,
+      sortable: true,
+      filterable: true,
+      defaultVisible: false,
+      filterOptions: ['Active', 'Inactive', 'Dormant', 'Prospecting'].map(s => ({ value: s.toLowerCase(), label: s })),
+      render: (row) => {
+        const val = row.EngagementStatus;
+        if (!val) return '—';
+        const colorMap: Record<string, 'emerald' | 'slate' | 'amber' | 'blue'> = { Active: 'emerald', Inactive: 'slate', Dormant: 'amber', Prospecting: 'blue' };
+        return <Badge label={val} color={colorMap[val] ?? 'gray'} />;
+      },
+      getValue: (row) => row.EngagementStatus ?? '',
+    },
+    {
+      key: 'AssignedOwner',
+      header: 'Assigned Owner',
+      type: 'string' as const,
+      sortable: true,
+      filterable: true,
+      searchable: true,
+      defaultVisible: false,
+      render: (row) => row.AssignedOwner || '—',
+      getValue: (row) => row.AssignedOwner ?? '',
+    },
+    {
+      key: 'Tags',
+      header: 'Tags',
+      type: 'string' as const,
+      defaultVisible: false,
+      render: () => '—',
+      getValue: () => '',
+    },
   ], [orgs, lookups]);
 
   const rollupDimensions: RollupDimension[] = useMemo(() => [
@@ -189,17 +258,24 @@ export default function OrganizationsPage() {
     const prioMap = new Map((lookups.priorityLevels ?? []).map(i => [i.name.toLowerCase(), i.id]));
     const relMap = new Map((lookups.relationshipLevels ?? []).map(i => [i.name.toLowerCase(), i.id]));
 
+    let imported = 0;
+    let skipped = 0;
     for (const row of rows) {
       const body: Record<string, unknown> = {
         OrganizationName: row.OrganizationName,
-        City: row.City || undefined,
-        State: row.State || undefined,
-        Notes: row.Notes || undefined,
+        City: row.City || null,
+        State: row.State || null,
+        Notes: row.Notes || null,
       };
-      if (row.OrgType) body.OrgTypeID = typeMap.get(row.OrgType.toLowerCase());
-      if (row.PriorityLevel) body.PriorityLevelID = prioMap.get(row.PriorityLevel.toLowerCase());
-      if (row.RelationshipLevel) body.RelationshipLevelID = relMap.get(row.RelationshipLevel.toLowerCase());
-      await createOrganization(body);
+      if (row.OrgType) body.OrgTypeID = typeMap.get(row.OrgType.trim().toLowerCase()) ?? null;
+      if (row.PriorityLevel) body.PriorityLevelID = prioMap.get(row.PriorityLevel.trim().toLowerCase()) ?? null;
+      if (row.RelationshipLevel) body.RelationshipLevelID = relMap.get(row.RelationshipLevel.trim().toLowerCase()) ?? null;
+      try {
+        await createOrganization(body);
+        imported++;
+      } catch {
+        skipped++;
+      }
     }
     setLoading(true);
     await loadData();
@@ -215,16 +291,31 @@ export default function OrganizationsPage() {
     try {
       const body: Record<string, unknown> = {
         OrganizationName: form.OrganizationName,
-        City: form.City || undefined,
-        State: form.State || undefined,
-        HeadquartersLocation: form.HeadquartersLocation || undefined,
-        Notes: form.Notes || undefined,
-        OrgTypeID: form.OrgTypeID ? Number(form.OrgTypeID) : undefined,
-        OwnershipTypeID: form.OwnershipTypeID ? Number(form.OwnershipTypeID) : undefined,
-        GrowthStageID: form.GrowthStageID ? Number(form.GrowthStageID) : undefined,
-        PriorityLevelID: form.PriorityLevelID ? Number(form.PriorityLevelID) : undefined,
-        ContractorRoleID: form.ContractorRoleID ? Number(form.ContractorRoleID) : undefined,
-        RelationshipLevelID: form.RelationshipLevelID ? Number(form.RelationshipLevelID) : undefined,
+        City: form.City || null,
+        State: form.State || null,
+        HeadquartersLocation: form.HeadquartersLocation || null,
+        Notes: form.Notes || null,
+        OrgTypeID: form.OrgTypeID ? Number(form.OrgTypeID) : null,
+        OwnershipTypeID: form.OwnershipTypeID ? Number(form.OwnershipTypeID) : null,
+        GrowthStageID: form.GrowthStageID ? Number(form.GrowthStageID) : null,
+        PriorityLevelID: form.PriorityLevelID ? Number(form.PriorityLevelID) : null,
+        ContractorRoleID: form.ContractorRoleID ? Number(form.ContractorRoleID) : null,
+        RelationshipLevelID: form.RelationshipLevelID ? Number(form.RelationshipLevelID) : null,
+        LinkedInURL: form.LinkedInURL || null,
+        GeneralEmail: form.GeneralEmail || null,
+        MainPhone: form.MainPhone || null,
+        AnnualRevenueRange: form.AnnualRevenueRange || null,
+        EmployeeCountRange: form.EmployeeCountRange || null,
+        NAICSCode: form.NAICSCode || null,
+        PublicPrivateStatus: form.PublicPrivateStatus || null,
+        BusinessModelType: form.BusinessModelType || null,
+        PartnershipStageID: form.PartnershipStageID ? Number(form.PartnershipStageID) : null,
+        EngagementStatus: form.EngagementStatus || null,
+        StrategicPriorityLevel: form.StrategicPriorityLevel || null,
+        AssignedOwner: form.AssignedOwner || null,
+        AssignedTeam: form.AssignedTeam || null,
+        HQCountry: form.HQCountry || null,
+        PrimaryRegion: form.PrimaryRegion || null,
       };
       await createOrganization(body);
       setModalOpen(false);
@@ -341,6 +432,106 @@ export default function OrganizationsPage() {
               {id => <textarea id={id} rows={3} className={inputClass} value={form.Notes} onChange={e => handleFormChange('Notes', e.target.value)} />}
             </FormField>
           </div>
+
+          <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mt-4 mb-2 md:col-span-2">Contact Info</h3>
+          <FormField label="LinkedIn URL">
+            {id => <input id={id} className={inputClass} value={form.LinkedInURL} onChange={e => handleFormChange('LinkedInURL', e.target.value)} />}
+          </FormField>
+          <FormField label="General Email">
+            {id => <input id={id} className={inputClass} value={form.GeneralEmail} onChange={e => handleFormChange('GeneralEmail', e.target.value)} />}
+          </FormField>
+          <FormField label="Main Phone">
+            {id => <input id={id} className={inputClass} value={form.MainPhone} onChange={e => handleFormChange('MainPhone', e.target.value)} />}
+          </FormField>
+
+          <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mt-4 mb-2 md:col-span-2">Classification</h3>
+          <FormField label="Public / Private Status">
+            {id => (
+              <select id={id} className={selectClass} value={form.PublicPrivateStatus} onChange={e => handleFormChange('PublicPrivateStatus', e.target.value)}>
+                <option value="">Select…</option>
+                <option value="Public">Public</option>
+                <option value="Private">Private</option>
+                <option value="Government">Government</option>
+                <option value="Nonprofit">Nonprofit</option>
+              </select>
+            )}
+          </FormField>
+          <FormField label="Annual Revenue Range">
+            {id => (
+              <select id={id} className={selectClass} value={form.AnnualRevenueRange} onChange={e => handleFormChange('AnnualRevenueRange', e.target.value)}>
+                <option value="">Select…</option>
+                <option value="<$1M">{'<$1M'}</option>
+                <option value="$1M-$10M">$1M–$10M</option>
+                <option value="$10M-$100M">$10M–$100M</option>
+                <option value="$100M-$1B">$100M–$1B</option>
+                <option value="$1B+">$1B+</option>
+              </select>
+            )}
+          </FormField>
+          <FormField label="Employee Count Range">
+            {id => (
+              <select id={id} className={selectClass} value={form.EmployeeCountRange} onChange={e => handleFormChange('EmployeeCountRange', e.target.value)}>
+                <option value="">Select…</option>
+                <option value="1-50">1–50</option>
+                <option value="51-200">51–200</option>
+                <option value="201-1000">201–1,000</option>
+                <option value="1001-5000">1,001–5,000</option>
+                <option value="5000+">5,000+</option>
+              </select>
+            )}
+          </FormField>
+          <FormField label="NAICS Code">
+            {id => <input id={id} className={inputClass} value={form.NAICSCode} onChange={e => handleFormChange('NAICSCode', e.target.value)} />}
+          </FormField>
+          <FormField label="Business Model Type">
+            {id => <input id={id} className={inputClass} value={form.BusinessModelType} onChange={e => handleFormChange('BusinessModelType', e.target.value)} />}
+          </FormField>
+
+          <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mt-4 mb-2 md:col-span-2">Strategy</h3>
+          <FormField label="Partnership Stage">
+            {id => (
+              <select id={id} className={selectClass} value={form.PartnershipStageID} onChange={e => handleFormChange('PartnershipStageID', e.target.value)}>
+                <option value="">Select…</option>
+                {(lookups.partnershipStages ?? []).map(i => <option key={i.id} value={i.id}>{i.name}</option>)}
+              </select>
+            )}
+          </FormField>
+          <FormField label="Strategic Priority Level">
+            {id => (
+              <select id={id} className={selectClass} value={form.StrategicPriorityLevel} onChange={e => handleFormChange('StrategicPriorityLevel', e.target.value)}>
+                <option value="">Select…</option>
+                <option value="Low">Low</option>
+                <option value="Medium">Medium</option>
+                <option value="High">High</option>
+                <option value="Critical">Critical</option>
+              </select>
+            )}
+          </FormField>
+          <FormField label="Engagement Status">
+            {id => (
+              <select id={id} className={selectClass} value={form.EngagementStatus} onChange={e => handleFormChange('EngagementStatus', e.target.value)}>
+                <option value="">Select…</option>
+                <option value="Active">Active</option>
+                <option value="Inactive">Inactive</option>
+                <option value="Dormant">Dormant</option>
+                <option value="Prospecting">Prospecting</option>
+              </select>
+            )}
+          </FormField>
+          <FormField label="Assigned Owner">
+            {id => <input id={id} className={inputClass} value={form.AssignedOwner} onChange={e => handleFormChange('AssignedOwner', e.target.value)} />}
+          </FormField>
+          <FormField label="Assigned Team">
+            {id => <input id={id} className={inputClass} value={form.AssignedTeam} onChange={e => handleFormChange('AssignedTeam', e.target.value)} />}
+          </FormField>
+
+          <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mt-4 mb-2 md:col-span-2">Location</h3>
+          <FormField label="HQ Country">
+            {id => <input id={id} className={inputClass} value={form.HQCountry} onChange={e => handleFormChange('HQCountry', e.target.value)} />}
+          </FormField>
+          <FormField label="Primary Region">
+            {id => <input id={id} className={inputClass} value={form.PrimaryRegion} onChange={e => handleFormChange('PrimaryRegion', e.target.value)} />}
+          </FormField>
         </div>
         <div className="mt-6 flex justify-end gap-3">
           <button onClick={() => setModalOpen(false)} className="rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50 transition-colors">Cancel</button>

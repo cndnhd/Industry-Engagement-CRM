@@ -20,11 +20,13 @@ export async function POST(req: NextRequest) {
     const rows = await query(
       `INSERT INTO dbo.EngagementEvents
         (OrganizationID, PrimaryContactID, EventDate, OutreachMotionID, EngagementTypeID,
-         ResponseTimeDays, FollowUpCadenceDays, Subject, Outcome, Notes, NextStep, NextStepDate)
+         ResponseTimeDays, FollowUpCadenceDays, Subject, Outcome, Notes, NextStep, NextStepDate,
+         Channel, Direction, Sentiment, EntryVector, ValuePropositionCategory, FacultySource, CompletedFlag)
        OUTPUT INSERTED.*
        VALUES
         (@OrganizationID, @PrimaryContactID, @EventDate, @OutreachMotionID, @EngagementTypeID,
-         @ResponseTimeDays, @FollowUpCadenceDays, @Subject, @Outcome, @Notes, @NextStep, @NextStepDate)`,
+         @ResponseTimeDays, @FollowUpCadenceDays, @Subject, @Outcome, @Notes, @NextStep, @NextStepDate,
+         @Channel, @Direction, @Sentiment, @EntryVector, @ValuePropositionCategory, @FacultySource, @CompletedFlag)`,
       {
         OrganizationID: body.OrganizationID,
         PrimaryContactID: body.PrimaryContactID ?? null,
@@ -38,6 +40,13 @@ export async function POST(req: NextRequest) {
         Notes: body.Notes ?? null,
         NextStep: body.NextStep ?? null,
         NextStepDate: body.NextStepDate ?? null,
+        Channel: body.Channel ?? null,
+        Direction: body.Direction ?? null,
+        Sentiment: body.Sentiment ?? null,
+        EntryVector: body.EntryVector ?? null,
+        ValuePropositionCategory: body.ValuePropositionCategory ?? null,
+        FacultySource: body.FacultySource ?? null,
+        CompletedFlag: body.CompletedFlag ?? false,
       },
     );
     return NextResponse.json(rows[0], { status: 201 });

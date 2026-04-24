@@ -5,11 +5,12 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   try {
     const { id } = await params;
     const rows = await query(
-      `SELECT t.StrategicTagID AS id, st.TagName AS name
-       FROM dbo.OrganizationStrategicTags t
-       JOIN dbo.StrategicTags st ON t.StrategicTagID = st.StrategicTagID
-       WHERE t.OrganizationID = @id`,
-      { id: Number(id) },
+      `SELECT o.OrganizationID, o.OrganizationName, o.City, o.State, o.EngagementStatus, o.AssignedOwner
+       FROM dbo.OrganizationGovernmentAlignments oga
+       JOIN dbo.Organizations o ON oga.OrganizationID = o.OrganizationID
+       WHERE oga.GovernmentAlignmentTypeID = @typeId
+       ORDER BY o.OrganizationName`,
+      { typeId: Number(id) },
     );
     return NextResponse.json(rows);
   } catch (err: unknown) {
@@ -22,19 +23,18 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   try {
     const { id } = await params;
     const body = await req.json();
-    const tagId = body.tagId;
-    if (!tagId) return NextResponse.json({ error: 'tagId is required' }, { status: 400 });
+    if (!body.organizationId) return NextResponse.json({ error: 'organizationId is required' }, { status: 400 });
     const rows = await query(
-      `INSERT INTO dbo.OrganizationStrategicTags (OrganizationID, StrategicTagID)
-       OUTPUT INSERTED.OrganizationStrategicTagID AS id
-       VALUES (@orgId, @tagId)`,
-      { orgId: Number(id), tagId: Number(tagId) },
+      `INSERT INTO dbo.OrganizationGovernmentAlignments (OrganizationID, GovernmentAlignmentTypeID)
+       OUTPUT INSERTED.OrganizationGovernmentAlignmentID AS id
+       VALUES (@orgId, @typeId)`,
+      { orgId: Number(body.organizationId), typeId: Number(id) },
     );
     return NextResponse.json(rows[0], { status: 201 });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Database error';
-    if (message.includes('UNIQUE') || message.includes('duplicate') || message.includes('Violation of UNIQUE KEY')) {
-      return NextResponse.json({ error: 'Tag already assigned' }, { status: 409 });
+    if (message.includes('UNIQUE') || message.includes('duplicate')) {
+      return NextResponse.json({ error: 'Organization already has this alignment' }, { status: 409 });
     }
     return NextResponse.json({ error: message }, { status: 500 });
   }
@@ -44,11 +44,10 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
   try {
     const { id } = await params;
     const body = await req.json();
-    const tagId = body.tagId;
-    if (!tagId) return NextResponse.json({ error: 'tagId is required' }, { status: 400 });
+    if (!body.organizationId) return NextResponse.json({ error: 'organizationId is required' }, { status: 400 });
     await query(
-      `DELETE FROM dbo.OrganizationStrategicTags WHERE OrganizationID = @orgId AND StrategicTagID = @tagId`,
-      { orgId: Number(id), tagId: Number(tagId) },
+      `DELETE FROM dbo.OrganizationGovernmentAlignments WHERE OrganizationID = @orgId AND GovernmentAlignmentTypeID = @typeId`,
+      { orgId: Number(body.organizationId), typeId: Number(id) },
     );
     return NextResponse.json({ success: true });
   } catch (err: unknown) {

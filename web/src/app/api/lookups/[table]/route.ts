@@ -26,6 +26,14 @@ const LOOKUP_WHITELIST: Record<
   governmentAlignmentTypes: { table: 'GovernmentAlignmentTypes', idCol: 'GovernmentAlignmentTypeID', nameCol: 'AlignmentName' },
   strategicTags: { table: 'StrategicTags', idCol: 'StrategicTagID', nameCol: 'TagName' },
   linkageRoles: { table: 'LinkageRoles', idCol: 'LinkageRoleID', nameCol: 'LinkageRoleName' },
+  industrySectors: { table: 'IndustrySectors', idCol: 'IndustrySectorID', nameCol: 'SectorName' },
+  subsectors: { table: 'Subsectors', idCol: 'SubsectorID', nameCol: 'SubsectorName' },
+  seniorityLevels: { table: 'SeniorityLevels', idCol: 'SeniorityLevelID', nameCol: 'LevelName', sortCol: 'SortOrder' },
+  contactTypes: { table: 'ContactTypes', idCol: 'ContactTypeID', nameCol: 'TypeName' },
+  personaTypes: { table: 'PersonaTypes', idCol: 'PersonaTypeID', nameCol: 'TypeName' },
+  partnershipStages: { table: 'PartnershipStages', idCol: 'PartnershipStageID', nameCol: 'StageName', sortCol: 'StageLevel' },
+  ecosystemEntityTypes: { table: 'EcosystemEntityTypes', idCol: 'EntityTypeID', nameCol: 'TypeName' },
+  interestAreas: { table: 'InterestAreas', idCol: 'InterestAreaID', nameCol: 'AreaName' },
 };
 
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ table: string }> }) {

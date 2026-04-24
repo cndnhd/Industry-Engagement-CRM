@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
-import type { Contact, Organization, UserList, UserListColumn, ListMembershipRow } from '@/types';
+import type { Contact, Organization, UserList, UserListColumn, ListMembershipRow, LookupItem } from '@/types';
 import {
   fetchContacts,
   fetchOrganizations,
@@ -19,9 +19,19 @@ import {
   patchListMembershipCells,
   loadLookup,
   resolveName,
+  previewSegment,
+  executeSegment,
 } from '@/lib/api';
+import {
+  RuleGroupEditor,
+  emptyGroup,
+  ORG_FIELDS,
+  CONTACT_FIELDS,
+  type RuleGroup,
+} from '@/components/segments/SegmentRuleBuilder';
 import PageHeader from '@/components/ui/PageHeader';
 import Modal from '@/components/ui/Modal';
+import Badge from '@/components/ui/Badge';
 import FormField, { inputClass, selectClass } from '@/components/ui/FormField';
 import CollectionsSidebar from '@/components/layout/CollectionsSidebar';
 import {
@@ -82,6 +92,234 @@ function LevelPicker({
 type ListContactRow = Contact & { _membershipId: number; _cells: Record<number, number> };
 type ListOrgRow = Organization & { _membershipId: number; _cells: Record<number, number> };
 
+function AddMembersPanel({
+  entityType,
+  contacts,
+  orgs,
+  orgMap,
+  existingContactIds,
+  existingOrgIds,
+  search,
+  onSearchChange,
+  orgFilter,
+  onOrgFilterChange,
+  selected,
+  onSelectedChange,
+  saving,
+  onAdd,
+  onCancel,
+}: {
+  entityType: 'C' | 'O';
+  contacts: Contact[];
+  orgs: Organization[];
+  orgMap: Map<number, string>;
+  existingContactIds: Set<number>;
+  existingOrgIds: Set<number>;
+  search: string;
+  onSearchChange: (v: string) => void;
+  orgFilter: string;
+  onOrgFilterChange: (v: string) => void;
+  selected: Set<number>;
+  onSelectedChange: (s: Set<number>) => void;
+  saving: boolean;
+  onAdd: () => void;
+  onCancel: () => void;
+}) {
+  const sortedOrgs = useMemo(() => [...orgs].sort((a, b) => a.OrganizationName.localeCompare(b.OrganizationName)), [orgs]);
+
+  const availableContacts = useMemo(() => {
+    return contacts.filter((c) => !existingContactIds.has(c.ContactID));
+  }, [contacts, existingContactIds]);
+
+  const availableOrgs = useMemo(() => {
+    return orgs.filter((o) => !existingOrgIds.has(o.OrganizationID));
+  }, [orgs, existingOrgIds]);
+
+  const filteredContacts = useMemo(() => {
+    let list = availableContacts;
+    if (orgFilter) {
+      const oid = Number(orgFilter);
+      list = list.filter((c) => c.OrganizationID === oid);
+    }
+    const q = search.trim().toLowerCase();
+    if (q) {
+      list = list.filter(
+        (c) =>
+          `${c.FirstName} ${c.LastName}`.toLowerCase().includes(q) ||
+          (c.Email ?? '').toLowerCase().includes(q) ||
+          (c.Title ?? '').toLowerCase().includes(q) ||
+          (orgMap.get(c.OrganizationID!) ?? '').toLowerCase().includes(q),
+      );
+    }
+    return list;
+  }, [availableContacts, orgFilter, search, orgMap]);
+
+  const filteredOrgs = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return availableOrgs;
+    return availableOrgs.filter(
+      (o) =>
+        o.OrganizationName.toLowerCase().includes(q) ||
+        (o.City ?? '').toLowerCase().includes(q) ||
+        (o.State ?? '').toLowerCase().includes(q),
+    );
+  }, [availableOrgs, search]);
+
+  const items = entityType === 'C' ? filteredContacts : filteredOrgs;
+  const allVisibleIds = entityType === 'C'
+    ? filteredContacts.map((c) => c.ContactID)
+    : filteredOrgs.map((o) => o.OrganizationID);
+
+  function toggleOne(id: number) {
+    const next = new Set(selected);
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
+    onSelectedChange(next);
+  }
+
+  function toggleAll() {
+    if (allVisibleIds.every((id) => selected.has(id))) {
+      const next = new Set(selected);
+      for (const id of allVisibleIds) next.delete(id);
+      onSelectedChange(next);
+    } else {
+      onSelectedChange(new Set([...selected, ...allVisibleIds]));
+    }
+  }
+
+  function addAllFromOrg(orgId: number) {
+    const ids = contacts.filter((c) => c.OrganizationID === orgId && !existingContactIds.has(c.ContactID)).map((c) => c.ContactID);
+    onSelectedChange(new Set([...selected, ...ids]));
+  }
+
+  const allChecked = allVisibleIds.length > 0 && allVisibleIds.every((id) => selected.has(id));
+
+  return (
+    <div className="space-y-3">
+      <div className="flex flex-wrap items-center gap-2">
+        <input
+          type="search"
+          placeholder="Search by name, email, org…"
+          className={`${inputClass} min-w-0 flex-1`}
+          value={search}
+          onChange={(e) => onSearchChange(e.target.value)}
+        />
+        {entityType === 'C' && (
+          <select
+            className={selectClass}
+            value={orgFilter}
+            onChange={(e) => onOrgFilterChange(e.target.value)}
+            aria-label="Filter by organization"
+          >
+            <option value="">All organizations</option>
+            {sortedOrgs.map((o) => (
+              <option key={o.OrganizationID} value={o.OrganizationID}>
+                {o.OrganizationName}
+              </option>
+            ))}
+          </select>
+        )}
+      </div>
+
+      {entityType === 'C' && orgFilter && (
+        <button
+          type="button"
+          onClick={() => addAllFromOrg(Number(orgFilter))}
+          className="text-sm font-medium text-indigo-600 hover:text-indigo-500"
+        >
+          Select all from {orgMap.get(Number(orgFilter)) ?? 'this org'} ({contacts.filter((c) => c.OrganizationID === Number(orgFilter) && !existingContactIds.has(c.ContactID)).length})
+        </button>
+      )}
+
+      <div className="max-h-64 overflow-y-auto rounded-lg border border-gray-200">
+        <table className="w-full text-left text-sm">
+          <thead className="sticky top-0 bg-gray-50">
+            <tr className="border-b border-gray-200">
+              <th className="px-3 py-2 w-8">
+                <input
+                  type="checkbox"
+                  className="h-4 w-4 rounded border-gray-300 text-indigo-600"
+                  checked={allChecked}
+                  onChange={toggleAll}
+                />
+              </th>
+              {entityType === 'C' ? (
+                <>
+                  <th className="px-3 py-2 font-semibold text-gray-700">Name</th>
+                  <th className="px-3 py-2 font-semibold text-gray-700">Organization</th>
+                  <th className="px-3 py-2 font-semibold text-gray-700">Title</th>
+                  <th className="px-3 py-2 font-semibold text-gray-700">Email</th>
+                </>
+              ) : (
+                <>
+                  <th className="px-3 py-2 font-semibold text-gray-700">Organization</th>
+                  <th className="px-3 py-2 font-semibold text-gray-700">Location</th>
+                </>
+              )}
+            </tr>
+          </thead>
+          <tbody>
+            {items.length === 0 ? (
+              <tr>
+                <td colSpan={entityType === 'C' ? 5 : 3} className="px-3 py-6 text-center text-gray-500">
+                  {search || orgFilter ? 'No matches.' : 'All already added.'}
+                </td>
+              </tr>
+            ) : entityType === 'C' ? (
+              (filteredContacts as Contact[]).map((c) => (
+                <tr
+                  key={c.ContactID}
+                  className={`cursor-pointer border-b border-gray-100 transition-colors ${selected.has(c.ContactID) ? 'bg-indigo-50' : 'hover:bg-gray-50'}`}
+                  onClick={() => toggleOne(c.ContactID)}
+                >
+                  <td className="px-3 py-1.5">
+                    <input type="checkbox" className="h-4 w-4 rounded border-gray-300 text-indigo-600" checked={selected.has(c.ContactID)} readOnly />
+                  </td>
+                  <td className="px-3 py-1.5 font-medium text-gray-900">{c.FirstName} {c.LastName}</td>
+                  <td className="px-3 py-1.5 text-gray-600">{orgMap.get(c.OrganizationID!) ?? '—'}</td>
+                  <td className="px-3 py-1.5 text-gray-600">{c.Title ?? '—'}</td>
+                  <td className="px-3 py-1.5 text-gray-600">{c.Email ?? '—'}</td>
+                </tr>
+              ))
+            ) : (
+              (filteredOrgs as Organization[]).map((o) => (
+                <tr
+                  key={o.OrganizationID}
+                  className={`cursor-pointer border-b border-gray-100 transition-colors ${selected.has(o.OrganizationID) ? 'bg-indigo-50' : 'hover:bg-gray-50'}`}
+                  onClick={() => toggleOne(o.OrganizationID)}
+                >
+                  <td className="px-3 py-1.5">
+                    <input type="checkbox" className="h-4 w-4 rounded border-gray-300 text-indigo-600" checked={selected.has(o.OrganizationID)} readOnly />
+                  </td>
+                  <td className="px-3 py-1.5 font-medium text-gray-900">{o.OrganizationName}</td>
+                  <td className="px-3 py-1.5 text-gray-600">{[o.City, o.State].filter(Boolean).join(', ') || '—'}</td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      <div className="flex items-center justify-between">
+        <span className="text-xs text-gray-500">{selected.size} selected</span>
+        <div className="flex gap-2">
+          <button type="button" className="rounded-lg px-4 py-2 text-sm text-gray-600 hover:bg-gray-100" onClick={onCancel}>
+            Cancel
+          </button>
+          <button
+            type="button"
+            disabled={selected.size === 0 || saving}
+            className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+            onClick={onAdd}
+          >
+            {saving ? 'Adding…' : `Add ${selected.size}`}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function ListsPage() {
   const [lists, setLists] = useState<UserList[]>([]);
   const [selectedId, setSelectedId] = useState<number | null>(null);
@@ -90,7 +328,11 @@ export default function ListsPage() {
   const [memberships, setMemberships] = useState<ListMembershipRow[]>([]);
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [orgs, setOrgs] = useState<Organization[]>([]);
-  const [orgLookups, setOrgLookups] = useState<Record<string, Awaited<ReturnType<typeof loadLookup>>>>({});
+  const [orgLookups, setOrgLookups] = useState<Record<string, LookupItem[]>>({});
+  const [functionalAreas, setFunctionalAreas] = useState<LookupItem[]>([]);
+  const [influenceLevels, setInfluenceLevels] = useState<LookupItem[]>([]);
+  const [riskTolerances, setRiskTolerances] = useState<LookupItem[]>([]);
+  const [personalOrientations, setPersonalOrientations] = useState<LookupItem[]>([]);
 
   const [loading, setLoading] = useState(true);
   const [loadingList, setLoadingList] = useState(false);
@@ -106,7 +348,18 @@ export default function ListsPage() {
   const [colTier, setColTier] = useState('3');
 
   const [showAddMember, setShowAddMember] = useState(false);
-  const [memberPick, setMemberPick] = useState('');
+  const [memberSearch, setMemberSearch] = useState('');
+  const [memberOrgFilter, setMemberOrgFilter] = useState('');
+  const [memberSelected, setMemberSelected] = useState<Set<number>>(new Set());
+  const [addingSaving, setAddingSaving] = useState(false);
+
+  const [showSmartFilter, setShowSmartFilter] = useState(false);
+  const [smartFilterGroup, setSmartFilterGroup] = useState<RuleGroup>(emptyGroup());
+  const [smartPreviewCount, setSmartPreviewCount] = useState<number | null>(null);
+  const [smartPreviewLoading, setSmartPreviewLoading] = useState(false);
+  const [smartResults, setSmartResults] = useState<Record<string, unknown>[] | null>(null);
+  const [smartResultsLoading, setSmartResultsLoading] = useState(false);
+  const [smartAdding, setSmartAdding] = useState(false);
 
   const gridSnapshotRef = useRef<GridSnapshot | null>(null);
 
@@ -118,16 +371,24 @@ export default function ListsPage() {
   useEffect(() => {
     (async () => {
       try {
-        const [c, o, orgTypes, pri, rel] = await Promise.all([
+        const [c, o, orgTypes, pri, rel, fa, il, rt, po] = await Promise.all([
           fetchContacts(),
           fetchOrganizations(),
           loadLookup('orgTypes'),
           loadLookup('priorityLevels'),
           loadLookup('relationshipLevels'),
+          loadLookup('functionalAreas'),
+          loadLookup('influenceLevels'),
+          loadLookup('riskToleranceLevels'),
+          loadLookup('personalOrientations'),
         ]);
         setContacts(c);
         setOrgs(o);
         setOrgLookups({ orgTypes, priorityLevels: pri, relationshipLevels: rel });
+        setFunctionalAreas(fa);
+        setInfluenceLevels(il);
+        setRiskTolerances(rt);
+        setPersonalOrientations(po);
       } catch (e) {
         setError(e instanceof Error ? e.message : 'Failed to load data');
       } finally {
@@ -228,6 +489,7 @@ export default function ListsPage() {
         type: 'string',
         sortable: true,
         searchable: true,
+        filterable: true,
         render: (c) => (
           <span className="font-medium text-gray-900">
             {c.FirstName} {c.LastName}
@@ -254,6 +516,7 @@ export default function ListsPage() {
         type: 'string',
         sortable: true,
         searchable: true,
+        filterable: true,
         getValue: (c) => c.Title ?? '',
       },
       {
@@ -261,7 +524,81 @@ export default function ListsPage() {
         header: 'Email',
         type: 'string',
         searchable: true,
+        filterable: true,
         getValue: (c) => c.Email ?? '',
+      },
+      {
+        key: 'Phone',
+        header: 'Phone',
+        type: 'string',
+        defaultVisible: false,
+        filterable: true,
+        getValue: (c) => c.Phone ?? '',
+      },
+      {
+        key: 'FunctionalArea',
+        header: 'Functional Area',
+        type: 'lookup',
+        filterable: true,
+        defaultVisible: false,
+        filterOptions: functionalAreas.map((i) => ({ value: i.name.toLowerCase(), label: i.name })),
+        render: (c) => resolveName(functionalAreas, c.FunctionalAreaID),
+        getValue: (c) => resolveName(functionalAreas, c.FunctionalAreaID),
+      },
+      {
+        key: 'InfluenceLevel',
+        header: 'Influence Level',
+        type: 'lookup',
+        filterable: true,
+        defaultVisible: false,
+        filterOptions: influenceLevels.map((i) => ({ value: i.name.toLowerCase(), label: i.name })),
+        render: (c) => {
+          const name = resolveName(influenceLevels, c.InfluenceLevelID);
+          if (name === '—') return '—';
+          const color = name.toLowerCase().includes('high') ? 'emerald' as const : name.toLowerCase().includes('medium') ? 'amber' as const : 'slate' as const;
+          return <Badge label={name} color={color} />;
+        },
+        getValue: (c) => resolveName(influenceLevels, c.InfluenceLevelID),
+      },
+      {
+        key: 'RiskTolerance',
+        header: 'Risk Tolerance',
+        type: 'lookup',
+        filterable: true,
+        defaultVisible: false,
+        filterOptions: riskTolerances.map((i) => ({ value: i.name.toLowerCase(), label: i.name })),
+        render: (c) => resolveName(riskTolerances, c.RiskToleranceID),
+        getValue: (c) => resolveName(riskTolerances, c.RiskToleranceID),
+      },
+      {
+        key: 'PersonalOrientation',
+        header: 'Personal Orientation',
+        type: 'lookup',
+        filterable: true,
+        defaultVisible: false,
+        filterOptions: personalOrientations.map((i) => ({ value: i.name.toLowerCase(), label: i.name })),
+        render: (c) => resolveName(personalOrientations, c.PersonalOrientationID),
+        getValue: (c) => resolveName(personalOrientations, c.PersonalOrientationID),
+      },
+      {
+        key: 'IsPrimary',
+        header: 'Primary',
+        type: 'boolean',
+        filterable: true,
+        defaultVisible: false,
+        filterOptions: [{ value: 'yes', label: 'Yes' }, { value: 'no', label: 'No' }],
+        render: (c) => c.IsPrimaryContact ? <Badge label="Primary" color="indigo" /> : '—',
+        getValue: (c) => c.IsPrimaryContact ? 'Yes' : 'No',
+      },
+      {
+        key: 'Alumni',
+        header: 'Alumni',
+        type: 'boolean',
+        filterable: true,
+        defaultVisible: false,
+        filterOptions: [{ value: 'yes', label: 'Yes' }, { value: 'no', label: 'No' }],
+        render: (c) => c.Alumni ? <Badge label="Alumni" color="blue" /> : '—',
+        getValue: (c) => c.Alumni ? 'Yes' : 'No',
       },
       {
         key: 'Actions',
@@ -293,7 +630,9 @@ export default function ListsPage() {
       header: `${lc.Label} (T${lc.ProcessTier})`,
       type: 'number',
       sortable: true,
+      filterable: true,
       defaultVisible: true,
+      filterOptions: [1, 2, 3, 4, 5].map((n) => ({ value: String(n), label: `Level ${n}` })),
       render: (row) => (
         <LevelPicker
           value={row._cells[lc.ColumnID] ?? 1}
@@ -304,7 +643,7 @@ export default function ListsPage() {
     }));
 
     return [...base.slice(0, -1), ...dyn, base[base.length - 1]];
-  }, [contactRows, orgMap, listColumns, handleCell, selectedId]);
+  }, [contactRows, orgMap, listColumns, handleCell, selectedId, functionalAreas, influenceLevels, riskTolerances, personalOrientations]);
 
   const orgGridColumns: GridColumn<ListOrgRow>[] = useMemo(() => {
     const { orgTypes, priorityLevels, relationshipLevels } = orgLookups;
@@ -444,20 +783,100 @@ export default function ListsPage() {
     setToast('Column added');
   }
 
-  async function handleAddMember() {
-    if (!selectedId || !memberPick) return;
-    const id = Number(memberPick);
-    if (!listDetail) return;
-    if (listDetail.EntityType === 'C') {
-      await addListMembership(selectedId, { ContactID: id });
-    } else {
-      await addListMembership(selectedId, { OrganizationID: id });
+  async function handleAddMembers() {
+    if (!selectedId || !listDetail || memberSelected.size === 0) return;
+    setAddingSaving(true);
+    try {
+      const ids = [...memberSelected];
+      for (const id of ids) {
+        try {
+          if (listDetail.EntityType === 'C') {
+            await addListMembership(selectedId, { ContactID: id });
+          } else {
+            await addListMembership(selectedId, { OrganizationID: id });
+          }
+        } catch {
+          /* skip duplicates / errors */
+        }
+      }
+      const mem = await fetchListMemberships(selectedId);
+      setMemberships(mem);
+      setShowAddMember(false);
+      setMemberSelected(new Set());
+      setMemberSearch('');
+      setMemberOrgFilter('');
+      setToast(`Added ${ids.length} to list`);
+    } finally {
+      setAddingSaving(false);
     }
-    const mem = await fetchListMemberships(selectedId);
-    setMemberships(mem);
-    setShowAddMember(false);
-    setMemberPick('');
-    setToast('Added to list');
+  }
+
+  function resetSmartFilter() {
+    setSmartFilterGroup(emptyGroup());
+    setSmartPreviewCount(null);
+    setSmartResults(null);
+  }
+
+  async function handleSmartPreview() {
+    if (!listDetail) return;
+    const entityType = listDetail.EntityType;
+    setSmartPreviewLoading(true);
+    setSmartPreviewCount(null);
+    setSmartResults(null);
+    try {
+      const resp = await previewSegment({ rules: { entityType, root: smartFilterGroup } });
+      setSmartPreviewCount(resp.count);
+    } catch (e) {
+      setToast(e instanceof Error ? e.message : 'Preview failed');
+    }
+    setSmartPreviewLoading(false);
+  }
+
+  async function handleSmartExecute() {
+    if (!listDetail) return;
+    const entityType = listDetail.EntityType;
+    setSmartResultsLoading(true);
+    try {
+      const rows = await executeSegment({ rules: { entityType, root: smartFilterGroup } });
+      setSmartResults(rows);
+    } catch (e) {
+      setToast(e instanceof Error ? e.message : 'Execute failed');
+    }
+    setSmartResultsLoading(false);
+  }
+
+  async function handleSmartAddAll() {
+    if (!selectedId || !listDetail || !smartResults || smartResults.length === 0) return;
+    setSmartAdding(true);
+    const existingContactIds = new Set(memberships.filter(m => m.contactId != null).map(m => m.contactId!));
+    const existingOrgIds = new Set(memberships.filter(m => m.organizationId != null).map(m => m.organizationId!));
+    let added = 0;
+    try {
+      for (const row of smartResults) {
+        try {
+          if (listDetail.EntityType === 'C') {
+            const id = row.ContactID as number;
+            if (id && !existingContactIds.has(id)) {
+              await addListMembership(selectedId, { ContactID: id });
+              added++;
+            }
+          } else {
+            const id = row.OrganizationID as number;
+            if (id && !existingOrgIds.has(id)) {
+              await addListMembership(selectedId, { OrganizationID: id });
+              added++;
+            }
+          }
+        } catch { /* skip duplicates */ }
+      }
+      const mem = await fetchListMemberships(selectedId);
+      setMemberships(mem);
+      setToast(`Added ${added} from smart filter`);
+      setShowSmartFilter(false);
+      resetSmartFilter();
+    } finally {
+      setSmartAdding(false);
+    }
   }
 
   async function saveViewToList() {
@@ -540,6 +959,18 @@ export default function ListsPage() {
               </button>
               <button
                 type="button"
+                onClick={() => { setShowSmartFilter(!showSmartFilter); if (showSmartFilter) resetSmartFilter(); }}
+                className={`rounded-lg border px-3 py-1.5 text-sm font-medium shadow-sm ${showSmartFilter ? 'border-indigo-400 bg-indigo-50 text-indigo-700' : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-50'}`}
+              >
+                <span className="inline-flex items-center gap-1.5">
+                  <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 3c2.755 0 5.455.232 8.083.678.533.09.917.556.917 1.096v1.044a2.25 2.25 0 0 1-.659 1.591l-5.432 5.432a2.25 2.25 0 0 0-.659 1.591v2.927a2.25 2.25 0 0 1-1.244 2.013L9.75 21v-6.568a2.25 2.25 0 0 0-.659-1.591L3.659 7.409A2.25 2.25 0 0 1 3 5.818V4.774c0-.54.384-1.006.917-1.096A48.32 48.32 0 0 1 12 3Z" />
+                  </svg>
+                  Smart Filter
+                </span>
+              </button>
+              <button
+                type="button"
                 onClick={saveViewToList}
                 className="rounded-lg bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white shadow-sm hover:bg-indigo-500"
               >
@@ -553,6 +984,88 @@ export default function ListsPage() {
                 Delete list
               </button>
             </div>
+
+            {showSmartFilter && (
+              <div className="rounded-xl bg-white shadow-sm ring-1 ring-gray-950/5 overflow-hidden">
+                <div className="flex items-center justify-between border-b border-gray-100 px-5 py-3">
+                  <div>
+                    <h3 className="text-sm font-semibold text-gray-900">Smart Filter — Boolean Rule Builder</h3>
+                    <p className="text-xs text-gray-500 mt-0.5">
+                      Build rules to find {listDetail.EntityType === 'C' ? 'contacts' : 'organizations'}, preview matches, then add them all to this list.
+                    </p>
+                  </div>
+                  <button type="button" onClick={() => { setShowSmartFilter(false); resetSmartFilter(); }}
+                    className="rounded p-1 text-gray-400 hover:text-gray-600 hover:bg-gray-100">
+                    <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+                <div className="p-4 space-y-4">
+                  <RuleGroupEditor
+                    group={smartFilterGroup}
+                    fields={listDetail.EntityType === 'O' ? ORG_FIELDS : CONTACT_FIELDS}
+                    onChange={setSmartFilterGroup}
+                    depth={0}
+                  />
+                  <div className="flex flex-wrap items-center gap-3 pt-2 border-t border-gray-100">
+                    <button type="button" onClick={handleSmartPreview} disabled={smartPreviewLoading || smartFilterGroup.conditions.length === 0}
+                      className="inline-flex items-center gap-1.5 rounded-lg bg-white px-4 py-2 text-sm font-medium text-gray-700 ring-1 ring-gray-200 shadow-sm hover:bg-gray-50 disabled:opacity-50">
+                      <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178Z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
+                      </svg>
+                      {smartPreviewLoading ? 'Counting…' : 'Preview Count'}
+                    </button>
+                    <button type="button" onClick={handleSmartExecute} disabled={smartResultsLoading || smartFilterGroup.conditions.length === 0}
+                      className="inline-flex items-center gap-1.5 rounded-lg bg-white px-4 py-2 text-sm font-medium text-gray-700 ring-1 ring-gray-200 shadow-sm hover:bg-gray-50 disabled:opacity-50">
+                      <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M3.375 19.5h17.25m-17.25 0a1.125 1.125 0 0 1-1.125-1.125M3.375 19.5h7.5c.621 0 1.125-.504 1.125-1.125m-9.75 0V5.625m0 12.75v-1.5c0-.621.504-1.125 1.125-1.125m18.375 2.625V5.625m0 12.75c0 .621-.504 1.125-1.125 1.125m1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125m0 3.75h-7.5A1.125 1.125 0 0 1 12 18.375m9.75-12.75c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125m19.5 0v1.5c0 .621-.504 1.125-1.125 1.125M2.25 5.625v1.5c0 .621.504 1.125 1.125 1.125m0 0h17.25m-17.25 0h7.5c.621 0 1.125.504 1.125 1.125M3.375 8.25c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125m17.25-3.75h-7.5c-.621 0-1.125.504-1.125 1.125m8.625-1.125c.621 0 1.125.504 1.125 1.125v1.5c0 .621-.504 1.125-1.125 1.125m-17.25 0h7.5m-7.5 0c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125M12 10.875v-1.5m0 1.5c0 .621-.504 1.125-1.125 1.125M12 10.875c0 .621.504 1.125 1.125 1.125m-2.25 0c.621 0 1.125.504 1.125 1.125M12 12h7.5m-7.5 0c-.621 0-1.125.504-1.125 1.125M20.625 12c.621 0 1.125.504 1.125 1.125v1.5c0 .621-.504 1.125-1.125 1.125m-17.25 0h7.5M12 14.625v-1.5m0 1.5c0 .621-.504 1.125-1.125 1.125M12 14.625c0 .621.504 1.125 1.125 1.125m-2.25 0c.621 0 1.125.504 1.125 1.125m0 0v1.5c0 .621-.504 1.125-1.125 1.125" />
+                      </svg>
+                      {smartResultsLoading ? 'Running…' : 'View Results'}
+                    </button>
+                    {smartPreviewCount !== null && (
+                      <span className="text-sm font-semibold text-indigo-600">{smartPreviewCount} match{smartPreviewCount !== 1 ? 'es' : ''}</span>
+                    )}
+                    <div className="flex-1" />
+                    {smartResults && smartResults.length > 0 && (
+                      <button type="button" onClick={handleSmartAddAll} disabled={smartAdding}
+                        className="inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-indigo-500 disabled:opacity-50">
+                        <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                        </svg>
+                        {smartAdding ? 'Adding…' : `Add all ${smartResults.length} to list`}
+                      </button>
+                    )}
+                  </div>
+                  {smartResults && smartResults.length > 0 && (
+                    <div className="max-h-48 overflow-auto rounded-lg border border-gray-200">
+                      <table className="w-full text-left text-xs">
+                        <thead className="sticky top-0 bg-gray-50">
+                          <tr className="border-b border-gray-200">
+                            {Object.keys(smartResults[0]).slice(0, 6).map((k) => (
+                              <th key={k} className="px-3 py-1.5 font-semibold text-gray-600">{k}</th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {smartResults.slice(0, 50).map((row, i) => (
+                            <tr key={i} className="border-b border-gray-50 hover:bg-gray-50">
+                              {Object.keys(smartResults[0]).slice(0, 6).map((k) => (
+                                <td key={k} className="px-3 py-1.5 text-gray-700 truncate max-w-[200px]">{String(row[k] ?? '—')}</td>
+                              ))}
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                  {smartResults && smartResults.length === 0 && (
+                    <p className="text-center text-sm text-gray-400 py-3">No matches found.</p>
+                  )}
+                </div>
+              </div>
+            )}
 
             {listDetail.EntityType === 'C' ? (
               <EnhancedDataGrid<ListContactRow>
@@ -643,40 +1156,24 @@ export default function ListsPage() {
         </div>
       </Modal>
 
-      <Modal isOpen={showAddMember} onClose={() => setShowAddMember(false)} title={`Add ${listDetail?.EntityType === 'O' ? 'organization' : 'contact'}`}>
-        <div className="space-y-4">
-          <FormField label={listDetail?.EntityType === 'O' ? 'Organization' : 'Contact'}>
-            {(id) => (
-              <select id={id} className={selectClass} value={memberPick} onChange={(e) => setMemberPick(e.target.value)}>
-                <option value="">Select…</option>
-                {listDetail?.EntityType === 'C'
-                  ? contacts
-                      .filter((c) => !memberships.some((m) => m.contactId === c.ContactID))
-                      .map((c) => (
-                        <option key={c.ContactID} value={c.ContactID}>
-                          {c.FirstName} {c.LastName}
-                          {c.Email ? ` — ${c.Email}` : ''}
-                        </option>
-                      ))
-                  : orgs
-                      .filter((o) => !memberships.some((m) => m.organizationId === o.OrganizationID))
-                      .map((o) => (
-                        <option key={o.OrganizationID} value={o.OrganizationID}>
-                          {o.OrganizationName}
-                        </option>
-                      ))}
-              </select>
-            )}
-          </FormField>
-          <div className="flex justify-end gap-2">
-            <button type="button" className="rounded-lg px-4 py-2 text-sm text-gray-600 hover:bg-gray-100" onClick={() => setShowAddMember(false)}>
-              Cancel
-            </button>
-            <button type="button" className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white" onClick={handleAddMember}>
-              Add
-            </button>
-          </div>
-        </div>
+      <Modal isOpen={showAddMember} onClose={() => { setShowAddMember(false); setMemberSelected(new Set()); setMemberSearch(''); setMemberOrgFilter(''); }} title={`Add ${listDetail?.EntityType === 'O' ? 'organizations' : 'contacts'}`} size="xl">
+        <AddMembersPanel
+          entityType={listDetail?.EntityType ?? 'C'}
+          contacts={contacts}
+          orgs={orgs}
+          orgMap={orgMap}
+          existingContactIds={new Set(memberships.filter(m => m.contactId != null).map(m => m.contactId!))}
+          existingOrgIds={new Set(memberships.filter(m => m.organizationId != null).map(m => m.organizationId!))}
+          search={memberSearch}
+          onSearchChange={setMemberSearch}
+          orgFilter={memberOrgFilter}
+          onOrgFilterChange={setMemberOrgFilter}
+          selected={memberSelected}
+          onSelectedChange={setMemberSelected}
+          saving={addingSaving}
+          onAdd={handleAddMembers}
+          onCancel={() => { setShowAddMember(false); setMemberSelected(new Set()); setMemberSearch(''); setMemberOrgFilter(''); }}
+        />
       </Modal>
 
       {toast && (

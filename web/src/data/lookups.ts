@@ -148,6 +148,14 @@ const lookupData: Record<LookupTable, LookupItem[]> = {
     { id: 7, name: 'Consultant' }, { id: 8, name: 'Thesis Advisor' },
     { id: 9, name: 'Program Director' }, { id: 10, name: 'Other' },
   ],
+  industrySectors: [],
+  subsectors: [],
+  seniorityLevels: [],
+  contactTypes: [],
+  personaTypes: [],
+  partnershipStages: [],
+  ecosystemEntityTypes: [],
+  interestAreas: [],
 };
 
 export function getLookup(table: LookupTable): LookupItem[] {

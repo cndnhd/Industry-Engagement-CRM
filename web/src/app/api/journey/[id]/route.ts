@@ -4,9 +4,14 @@ import { NextRequest, NextResponse } from 'next/server';
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params;
-    const rows = await query('SELECT * FROM dbo.EngagementEvents WHERE EngagementEventID = @id', {
-      id: Number(id),
-    });
+    const rows = await query(
+      `SELECT jl.*, js.JourneyStageName, o.OrganizationName
+       FROM dbo.JourneyLog jl
+       LEFT JOIN dbo.JourneyStages js ON jl.JourneyStageID = js.JourneyStageID
+       LEFT JOIN dbo.Organizations o ON jl.OrganizationID = o.OrganizationID
+       WHERE jl.JourneyLogID = @id`,
+      { id: Number(id) },
+    );
     if (rows.length === 0) return NextResponse.json({ error: 'Not found' }, { status: 404 });
     return NextResponse.json(rows[0]);
   } catch (err: unknown) {
@@ -20,49 +25,21 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     const { id } = await params;
     const body = await req.json();
     const rows = await query(
-      `UPDATE dbo.EngagementEvents SET
+      `UPDATE dbo.JourneyLog SET
         OrganizationID = @OrganizationID,
-        PrimaryContactID = @PrimaryContactID,
-        EventDate = @EventDate,
-        OutreachMotionID = @OutreachMotionID,
-        EngagementTypeID = @EngagementTypeID,
-        ResponseTimeDays = @ResponseTimeDays,
-        FollowUpCadenceDays = @FollowUpCadenceDays,
-        Subject = @Subject,
-        Outcome = @Outcome,
+        JourneyStageID = @JourneyStageID,
+        LogDate = @LogDate,
         Notes = @Notes,
-        NextStep = @NextStep,
-        NextStepDate = @NextStepDate,
-        Channel = @Channel,
-        Direction = @Direction,
-        Sentiment = @Sentiment,
-        EntryVector = @EntryVector,
-        ValuePropositionCategory = @ValuePropositionCategory,
-        FacultySource = @FacultySource,
-        CompletedFlag = @CompletedFlag
+        TriggeredBy = @TriggeredBy
        OUTPUT INSERTED.*
-       WHERE EngagementEventID = @id`,
+       WHERE JourneyLogID = @id`,
       {
         id: Number(id),
         OrganizationID: body.OrganizationID,
-        PrimaryContactID: body.PrimaryContactID ?? null,
-        EventDate: body.EventDate,
-        OutreachMotionID: body.OutreachMotionID ?? null,
-        EngagementTypeID: body.EngagementTypeID ?? null,
-        ResponseTimeDays: body.ResponseTimeDays ?? null,
-        FollowUpCadenceDays: body.FollowUpCadenceDays ?? null,
-        Subject: body.Subject ?? null,
-        Outcome: body.Outcome ?? null,
+        JourneyStageID: body.JourneyStageID,
+        LogDate: body.LogDate,
         Notes: body.Notes ?? null,
-        NextStep: body.NextStep ?? null,
-        NextStepDate: body.NextStepDate ?? null,
-        Channel: body.Channel ?? null,
-        Direction: body.Direction ?? null,
-        Sentiment: body.Sentiment ?? null,
-        EntryVector: body.EntryVector ?? null,
-        ValuePropositionCategory: body.ValuePropositionCategory ?? null,
-        FacultySource: body.FacultySource ?? null,
-        CompletedFlag: body.CompletedFlag ?? false,
+        TriggeredBy: body.TriggeredBy ?? null,
       },
     );
     if (rows.length === 0) return NextResponse.json({ error: 'Not found' }, { status: 404 });
@@ -76,7 +53,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
 export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params;
-    await query('DELETE FROM dbo.EngagementEvents WHERE EngagementEventID = @id', {
+    await query('DELETE FROM dbo.JourneyLog WHERE JourneyLogID = @id', {
       id: Number(id),
     });
     return NextResponse.json({ success: true });
