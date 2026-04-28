@@ -22,14 +22,15 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const rows = await query(
       `INSERT INTO dbo.JourneyLog
-        (OrganizationID, JourneyStageID, LogDate, EventType, Outcome,
+        (OrganizationID, ContactID, JourneyStageID, LogDate, EventType, Outcome,
          NextStep, NextStepDate, Owner, Notes, Summary)
        OUTPUT INSERTED.*
        VALUES
-        (@OrganizationID, @JourneyStageID, @LogDate, @EventType, @Outcome,
+        (@OrganizationID, @ContactID, @JourneyStageID, @LogDate, @EventType, @Outcome,
          @NextStep, @NextStepDate, @Owner, @Notes, @Summary)`,
       {
         OrganizationID: body.OrganizationID,
+        ContactID: body.ContactID ?? null,
         JourneyStageID: body.JourneyStageID,
         LogDate: body.LogDate,
         EventType: body.EventType ?? null,

@@ -65,6 +65,8 @@ export interface Contact {
   Title?: string;
   Email?: string;
   Phone?: string;
+  WorkPhone?: string;
+  CellPhone?: string;
   FunctionalAreaID?: number;
   InfluenceLevelID?: number;
   RiskToleranceID?: number;

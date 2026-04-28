@@ -9,6 +9,7 @@ import {
   deleteEngagement,
   fetchOrganizations,
   fetchContacts,
+  fetchContactsByOrg,
   loadLookup,
   resolveName,
 } from '@/lib/api';
@@ -34,6 +35,8 @@ export default function EngagementsPage() {
   const [editing, setEditing] = useState(false);
   const [editForm, setEditForm] = useState<Record<string, string>>({});
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+  const [createFilteredContacts, setCreateFilteredContacts] = useState<Contact[] | null>(null);
+  const [editFilteredContacts, setEditFilteredContacts] = useState<Contact[] | null>(null);
 
   useEffect(() => {
     if (!toast) return;
@@ -304,6 +307,35 @@ export default function EngagementsPage() {
     setToast({ message: `${rows.length} engagement(s) imported`, type: 'success' });
   }
 
+  // ── Org-change handlers for contact filtering ───────────────────────
+  async function handleCreateOrgChange(orgId: string) {
+    setForm(f => ({ ...f, OrganizationID: orgId, PrimaryContactID: '' }));
+    if (orgId) {
+      try {
+        const c = await fetchContactsByOrg(Number(orgId));
+        setCreateFilteredContacts(c);
+      } catch {
+        setCreateFilteredContacts([]);
+      }
+    } else {
+      setCreateFilteredContacts(null);
+    }
+  }
+
+  async function handleEditOrgChange(orgId: string) {
+    setEditForm(f => ({ ...f, OrganizationID: orgId, PrimaryContactID: '' }));
+    if (orgId) {
+      try {
+        const c = await fetchContactsByOrg(Number(orgId));
+        setEditFilteredContacts(c);
+      } catch {
+        setEditFilteredContacts([]);
+      }
+    } else {
+      setEditFilteredContacts(null);
+    }
+  }
+
   // ── CRUD handlers (unchanged logic) ──────────────────────────────────
   async function handleCreate() {
     setSaving(true);
@@ -324,6 +356,7 @@ export default function EngagementsPage() {
       setEvents(prev => [...prev, created]);
       setShowCreate(false);
       setForm({});
+      setCreateFilteredContacts(null);
       setToast({ message: 'Engagement created', type: 'success' });
     } catch (e) {
       setToast({ message: e instanceof Error ? e.message : 'Failed to create event', type: 'error' });
@@ -347,6 +380,13 @@ export default function EngagementsPage() {
       NextStep: e.NextStep ?? '',
       NextStepDate: e.NextStepDate ? e.NextStepDate.slice(0, 10) : '',
     });
+    if (e.OrganizationID != null) {
+      fetchContactsByOrg(e.OrganizationID)
+        .then(c => setEditFilteredContacts(c))
+        .catch(() => setEditFilteredContacts([]));
+    } else {
+      setEditFilteredContacts(null);
+    }
     setEditing(true);
   }
 
@@ -372,6 +412,7 @@ export default function EngagementsPage() {
       await reload();
       setSelected(null);
       setEditing(false);
+      setEditFilteredContacts(null);
       setToast({ message: 'Engagement updated successfully', type: 'success' });
     } catch (e) {
       setToast({ message: e instanceof Error ? e.message : 'Failed to update engagement', type: 'error' });
@@ -440,7 +481,7 @@ export default function EngagementsPage() {
       )}
 
       {/* Detail / Edit Modal */}
-      <Modal isOpen={!!selected} onClose={() => { setSelected(null); setEditing(false); }} title={editing ? 'Edit Event' : 'Event Details'} size="xl">
+      <Modal isOpen={!!selected} onClose={() => { setSelected(null); setEditing(false); setEditFilteredContacts(null); }} title={editing ? 'Edit Event' : 'Event Details'} size="xl">
         {selected && !editing && (
           <>
             <div className="mb-4 flex justify-end gap-2">
@@ -484,16 +525,24 @@ export default function EngagementsPage() {
               </div>
               <div>
                 <label className="text-sm font-medium text-gray-700">Organization</label>
-                <select className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20" value={editForm.OrganizationID ?? ''} onChange={e => setEditForm(f => ({ ...f, OrganizationID: e.target.value }))}>
+                <select className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20" value={editForm.OrganizationID ?? ''} onChange={e => handleEditOrgChange(e.target.value)}>
                   <option value="">Select…</option>
                   {orgs.map(o => <option key={o.OrganizationID} value={o.OrganizationID}>{o.OrganizationName}</option>)}
                 </select>
               </div>
               <div>
                 <label className="text-sm font-medium text-gray-700">Primary Contact</label>
-                <select className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20" value={editForm.PrimaryContactID ?? ''} onChange={e => setEditForm(f => ({ ...f, PrimaryContactID: e.target.value }))}>
-                  <option value="">Select…</option>
-                  {contacts.map(c => <option key={c.ContactID} value={c.ContactID}>{c.FirstName} {c.LastName}</option>)}
+                <select className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20" value={editForm.PrimaryContactID ?? ''} onChange={e => setEditForm(f => ({ ...f, PrimaryContactID: e.target.value }))} disabled={editFilteredContacts === null}>
+                  {editFilteredContacts === null ? (
+                    <option value="">Select organization first</option>
+                  ) : editFilteredContacts.length === 0 ? (
+                    <option value="">(No contacts for this organization)</option>
+                  ) : (
+                    <>
+                      <option value="">Select…</option>
+                      {editFilteredContacts.map(c => <option key={c.ContactID} value={c.ContactID}>{c.FirstName} {c.LastName}</option>)}
+                    </>
+                  )}
                 </select>
               </div>
               <div>
@@ -550,7 +599,7 @@ export default function EngagementsPage() {
       </Modal>
 
       {/* Create Modal */}
-      <Modal isOpen={showCreate} onClose={() => { setShowCreate(false); setForm({}); }} title="New Engagement Event" size="xl">
+      <Modal isOpen={showCreate} onClose={() => { setShowCreate(false); setForm({}); setCreateFilteredContacts(null); }} title="New Engagement Event" size="xl">
         <div className="grid grid-cols-2 gap-x-6 gap-y-4">
           <div className="col-span-2">
             <FormField label="Subject" required>
@@ -559,7 +608,7 @@ export default function EngagementsPage() {
           </div>
           <FormField label="Organization">
             {id => (
-              <select id={id} className={selectClass} value={form.OrganizationID ?? ''} onChange={e => setForm(f => ({ ...f, OrganizationID: e.target.value }))}>
+              <select id={id} className={selectClass} value={form.OrganizationID ?? ''} onChange={e => handleCreateOrgChange(e.target.value)}>
                 <option value="">Select…</option>
                 {orgs.map(o => <option key={o.OrganizationID} value={o.OrganizationID}>{o.OrganizationName}</option>)}
               </select>
@@ -567,9 +616,17 @@ export default function EngagementsPage() {
           </FormField>
           <FormField label="Primary Contact">
             {id => (
-              <select id={id} className={selectClass} value={form.PrimaryContactID ?? ''} onChange={e => setForm(f => ({ ...f, PrimaryContactID: e.target.value }))}>
-                <option value="">Select…</option>
-                {contacts.map(c => <option key={c.ContactID} value={c.ContactID}>{c.FirstName} {c.LastName}</option>)}
+              <select id={id} className={selectClass} value={form.PrimaryContactID ?? ''} onChange={e => setForm(f => ({ ...f, PrimaryContactID: e.target.value }))} disabled={createFilteredContacts === null}>
+                {createFilteredContacts === null ? (
+                  <option value="">Select organization first</option>
+                ) : createFilteredContacts.length === 0 ? (
+                  <option value="">(No contacts for this organization)</option>
+                ) : (
+                  <>
+                    <option value="">Select…</option>
+                    {createFilteredContacts.map(c => <option key={c.ContactID} value={c.ContactID}>{c.FirstName} {c.LastName}</option>)}
+                  </>
+                )}
               </select>
             )}
           </FormField>
@@ -610,7 +667,7 @@ export default function EngagementsPage() {
           </div>
         </div>
         <div className="mt-6 flex justify-end gap-3">
-          <button onClick={() => { setShowCreate(false); setForm({}); }} className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors">Cancel</button>
+          <button onClick={() => { setShowCreate(false); setForm({}); setCreateFilteredContacts(null); }} className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors">Cancel</button>
           <button onClick={handleCreate} disabled={saving || !form.Subject} className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-indigo-500 disabled:opacity-50 transition-colors">
             {saving ? 'Saving…' : 'Create Event'}
           </button>

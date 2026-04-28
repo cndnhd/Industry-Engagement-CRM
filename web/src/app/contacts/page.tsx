@@ -1,17 +1,15 @@
 'use client';
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import type { Contact, Organization, LookupItem, UserList } from '@/types';
+import { useRouter } from 'next/navigation';
+import type { Contact, Organization, LookupItem } from '@/types';
 import {
   fetchContacts,
   createContact,
-  updateContact,
   deleteContact,
   fetchOrganizations,
   loadLookup,
   resolveName,
-  fetchUserLists,
-  addListMembership,
 } from '@/lib/api';
 import PageHeader from '@/components/ui/PageHeader';
 import Modal from '@/components/ui/Modal';
@@ -34,18 +32,12 @@ export default function ContactsPage() {
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [selected, setSelected] = useState<Contact | null>(null);
   const [showCreate, setShowCreate] = useState(false);
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState<Record<string, string>>({});
-
-  const [showEdit, setShowEdit] = useState(false);
-  const [editForm, setEditForm] = useState<Record<string, string>>({});
-  const [editSaving, setEditSaving] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'destructive' } | null>(null);
 
-  const [contactLists, setContactLists] = useState<UserList[]>([]);
-  const [listPickId, setListPickId] = useState('');
+  const router = useRouter();
 
   const reload = useCallback(async () => {
     try {
@@ -79,19 +71,12 @@ export default function ContactsPage() {
   useEffect(() => { reload(); }, [reload]);
 
   useEffect(() => {
-    fetchUserLists({ entityType: 'C' })
-      .then(setContactLists)
-      .catch(() => {});
-  }, []);
-
-  useEffect(() => {
     if (!toast) return;
     const t = setTimeout(() => setToast(null), 3000);
     return () => clearTimeout(t);
   }, [toast]);
 
   const handleFormChange = (key: string, value: string) => setForm(f => ({ ...f, [key]: value }));
-  const handleEditFormChange = (key: string, value: string) => setEditForm(f => ({ ...f, [key]: value }));
 
   const orgMap = useMemo(
     () => new Map(orgs.map(o => [o.OrganizationID, o.OrganizationName])),
@@ -121,6 +106,14 @@ export default function ContactsPage() {
     {
       key: 'Phone', header: 'Phone', type: 'string' as const, defaultVisible: false,
       getValue: c => c.Phone ?? '',
+    },
+    {
+      key: 'WorkPhone', header: 'Work Phone', type: 'string' as const, defaultVisible: false,
+      getValue: c => c.WorkPhone ?? '',
+    },
+    {
+      key: 'CellPhone', header: 'Cell Phone', type: 'string' as const, defaultVisible: false,
+      getValue: c => c.CellPhone ?? '',
     },
     {
       key: 'FunctionalArea', header: 'Functional Area', type: 'lookup' as const, filterable: true,
@@ -297,16 +290,12 @@ export default function ContactsPage() {
   async function handleCreate() {
     setSaving(true);
     try {
-      if (!form.OrganizationID) {
-        setToast({ message: 'Organization is required', type: 'error' });
-        setSaving(false);
-        return;
-      }
       const body: Record<string, unknown> = {
         FirstName: form.FirstName, LastName: form.LastName,
         Email: form.Email || null, Phone: form.Phone || null,
+        WorkPhone: form.WorkPhone || null, CellPhone: form.CellPhone || null,
         Title: form.Title || null, Notes: form.Notes || null,
-        OrganizationID: Number(form.OrganizationID),
+        OrganizationID: form.OrganizationID ? Number(form.OrganizationID) : null,
         FunctionalAreaID: form.FunctionalAreaID ? Number(form.FunctionalAreaID) : null,
         InfluenceLevelID: form.InfluenceLevelID ? Number(form.InfluenceLevelID) : null,
         RiskToleranceID: form.RiskToleranceID ? Number(form.RiskToleranceID) : null,
@@ -349,122 +338,11 @@ export default function ContactsPage() {
     }
   }
 
-  function openEditForm(contact: Contact) {
-    setEditForm({
-      FirstName: contact.FirstName ?? '', LastName: contact.LastName ?? '',
-      Title: contact.Title ?? '', Email: contact.Email ?? '', Phone: contact.Phone ?? '',
-      OrganizationID: contact.OrganizationID != null ? String(contact.OrganizationID) : '',
-      FunctionalAreaID: contact.FunctionalAreaID != null ? String(contact.FunctionalAreaID) : '',
-      InfluenceLevelID: contact.InfluenceLevelID != null ? String(contact.InfluenceLevelID) : '',
-      RiskToleranceID: contact.RiskToleranceID != null ? String(contact.RiskToleranceID) : '',
-      PersonalOrientationID: contact.PersonalOrientationID != null ? String(contact.PersonalOrientationID) : '',
-      Alumni: contact.Alumni ? '1' : '0',
-      ClearanceFamiliarity: contact.ClearanceFamiliarity ? '1' : '0',
-      IsPrimaryContact: contact.IsPrimaryContact ? '1' : '0',
-      Notes: contact.Notes ?? '',
-      Prefix: contact.Prefix ?? '',
-      PreferredName: contact.PreferredName ?? '',
-      SecondaryEmail: contact.SecondaryEmail ?? '',
-      OfficePhone: contact.OfficePhone ?? '',
-      LinkedInURL: contact.LinkedInURL ?? '',
-      Department: contact.Department ?? '',
-      SeniorityLevelID: contact.SeniorityLevelID != null ? String(contact.SeniorityLevelID) : '',
-      ContactTypeID: contact.ContactTypeID != null ? String(contact.ContactTypeID) : '',
-      PersonaTypeID: contact.PersonaTypeID != null ? String(contact.PersonaTypeID) : '',
-      City: contact.City ?? '',
-      State: contact.State ?? '',
-      Country: contact.Country ?? '',
-      RelationshipOwner: contact.RelationshipOwner ?? '',
-      CommunicationPreference: contact.CommunicationPreference ?? '',
-      WarmthStatus: contact.WarmthStatus ?? '',
-      RelationshipStrength: contact.RelationshipStrength != null ? (STRENGTH_LABELS[contact.RelationshipStrength] ?? String(contact.RelationshipStrength)) : '',
-      DecisionMakerFlag: contact.DecisionMakerFlag ? 'true' : 'false',
-      ChampionFlag: contact.ChampionFlag ? 'true' : 'false',
-      DonorFlag: contact.DonorFlag ? 'true' : 'false',
-      SpeakerFlag: contact.SpeakerFlag ? 'true' : 'false',
-      AdvisoryBoardFlag: contact.AdvisoryBoardFlag ? 'true' : 'false',
-      HiringContactFlag: contact.HiringContactFlag ? 'true' : 'false',
-      InternshipContactFlag: contact.InternshipContactFlag ? 'true' : 'false',
-      ResearchContactFlag: contact.ResearchContactFlag ? 'true' : 'false',
-      LegislativeContactFlag: contact.LegislativeContactFlag ? 'true' : 'false',
-    });
-    setShowEdit(true);
-  }
-
-  async function handleEditSave() {
-    if (!selected) return;
-    setEditSaving(true);
-    try {
-      const body: Record<string, unknown> = {
-        FirstName: editForm.FirstName, LastName: editForm.LastName,
-        Email: editForm.Email || null, Phone: editForm.Phone || null,
-        Title: editForm.Title || null, Notes: editForm.Notes || null,
-        OrganizationID: editForm.OrganizationID ? Number(editForm.OrganizationID) : selected.OrganizationID,
-        FunctionalAreaID: editForm.FunctionalAreaID ? Number(editForm.FunctionalAreaID) : null,
-        InfluenceLevelID: editForm.InfluenceLevelID ? Number(editForm.InfluenceLevelID) : null,
-        RiskToleranceID: editForm.RiskToleranceID ? Number(editForm.RiskToleranceID) : null,
-        PersonalOrientationID: editForm.PersonalOrientationID ? Number(editForm.PersonalOrientationID) : null,
-        Prefix: editForm.Prefix || null,
-        PreferredName: editForm.PreferredName || null,
-        SecondaryEmail: editForm.SecondaryEmail || null,
-        OfficePhone: editForm.OfficePhone || null,
-        LinkedInURL: editForm.LinkedInURL || null,
-        Department: editForm.Department || null,
-        SeniorityLevelID: editForm.SeniorityLevelID ? Number(editForm.SeniorityLevelID) : null,
-        ContactTypeID: editForm.ContactTypeID ? Number(editForm.ContactTypeID) : null,
-        PersonaTypeID: editForm.PersonaTypeID ? Number(editForm.PersonaTypeID) : null,
-        City: editForm.City || null,
-        State: editForm.State || null,
-        Country: editForm.Country || null,
-        RelationshipOwner: editForm.RelationshipOwner || null,
-        CommunicationPreference: editForm.CommunicationPreference || null,
-        WarmthStatus: editForm.WarmthStatus || null,
-        RelationshipStrength: editForm.RelationshipStrength || null,
-        DecisionMakerFlag: editForm.DecisionMakerFlag === 'true',
-        ChampionFlag: editForm.ChampionFlag === 'true',
-        DonorFlag: editForm.DonorFlag === 'true',
-        SpeakerFlag: editForm.SpeakerFlag === 'true',
-        AdvisoryBoardFlag: editForm.AdvisoryBoardFlag === 'true',
-        HiringContactFlag: editForm.HiringContactFlag === 'true',
-        InternshipContactFlag: editForm.InternshipContactFlag === 'true',
-        ResearchContactFlag: editForm.ResearchContactFlag === 'true',
-        LegislativeContactFlag: editForm.LegislativeContactFlag === 'true',
-        Alumni: editForm.Alumni === '1', ClearanceFamiliarity: editForm.ClearanceFamiliarity === '1',
-        IsPrimaryContact: editForm.IsPrimaryContact === '1',
-      };
-      await updateContact(selected.ContactID, body);
-      await reload();
-      setSelected(null);
-      setShowEdit(false);
-      setToast({ message: 'Contact updated successfully', type: 'success' });
-    } catch (e) {
-      setToast({ message: e instanceof Error ? e.message : 'Failed to update contact', type: 'error' });
-    } finally {
-      setEditSaving(false);
-    }
-  }
-
-  async function handleAddToList() {
-    if (!selected || !listPickId) return;
-    try {
-      await addListMembership(Number(listPickId), { ContactID: selected.ContactID });
-      setToast({ message: 'Added to list', type: 'success' });
-      setListPickId('');
-    } catch (e) {
-      setToast({
-        message: e instanceof Error ? e.message : 'Could not add to list',
-        type: 'error',
-      });
-    }
-  }
-
   async function handleDelete(id: number) {
     if (!confirm('Are you sure you want to delete this contact? This cannot be undone.')) return;
     try {
       await deleteContact(id);
       setContacts(prev => prev.filter(c => c.ContactID !== id));
-      setSelected(null);
-      setShowEdit(false);
       setToast({ message: 'Contact deleted', type: 'destructive' });
     } catch (err) {
       setToast({ message: err instanceof Error ? err.message : 'Failed to delete', type: 'error' });
@@ -482,7 +360,7 @@ export default function ContactsPage() {
         data={contacts}
         columns={columns}
         entityName="Contacts"
-        onRowClick={item => setSelected(item)}
+        onRowClick={item => router.push(`/contacts/${item.ContactID}`)}
         emptyMessage="No contacts found. Adjust filters or create a new contact."
         rollupDimensions={rollupDimensions}
         rollupAggregates={[]}
@@ -498,156 +376,6 @@ export default function ContactsPage() {
         </div>
       )}
 
-      {/* Detail / Edit Modal */}
-      <Modal isOpen={!!selected} onClose={() => { setSelected(null); setShowEdit(false); }} title={showEdit ? 'Edit Contact' : 'Contact Details'} size="xl">
-        {selected && !showEdit && (
-          <>
-            <dl className="grid grid-cols-2 gap-x-8 gap-y-4 text-sm">
-              <Detail label="Name" value={`${selected.FirstName} ${selected.LastName}`} />
-              <Detail label="Organization" value={orgMap.get(selected.OrganizationID!) ?? '—'} />
-              <Detail label="Title" value={selected.Title} />
-              <Detail label="Email" value={selected.Email} />
-              <Detail label="Phone" value={selected.Phone} />
-              <Detail label="Functional Area" value={resolveName(functionalAreas, selected.FunctionalAreaID)} />
-              <Detail label="Influence Level" value={resolveName(influenceLevels, selected.InfluenceLevelID)} />
-              <Detail label="Risk Tolerance" value={resolveName(riskTolerances, selected.RiskToleranceID)} />
-              <Detail label="Personal Orientation" value={resolveName(personalOrientations, selected.PersonalOrientationID)} />
-              <Detail label="Primary Contact" value={selected.IsPrimaryContact ? 'Yes' : 'No'} />
-              <Detail label="Alumni" value={selected.Alumni ? 'Yes' : 'No'} />
-              <Detail label="Clearance Familiarity" value={selected.ClearanceFamiliarity ? 'Yes' : 'No'} />
-              <Detail label="Prefix" value={selected.Prefix} />
-              <Detail label="Preferred Name" value={selected.PreferredName} />
-              <Detail label="Secondary Email" value={selected.SecondaryEmail} />
-              <Detail label="Office Phone" value={selected.OfficePhone} />
-              <Detail label="LinkedIn URL" value={selected.LinkedInURL} />
-              <Detail label="Department" value={selected.Department} />
-              <Detail label="Seniority" value={resolveName(seniorityLevels, selected.SeniorityLevelID)} />
-              <Detail label="Contact Type" value={resolveName(contactTypes, selected.ContactTypeID)} />
-              <Detail label="Persona Type" value={resolveName(personaTypes, selected.PersonaTypeID)} />
-              <Detail label="City" value={selected.City} />
-              <Detail label="State" value={selected.State} />
-              <Detail label="Country" value={selected.Country} />
-              <Detail label="Relationship Owner" value={selected.RelationshipOwner} />
-              <Detail label="Communication Preference" value={selected.CommunicationPreference} />
-              <Detail label="Warmth Status" value={selected.WarmthStatus} />
-              <Detail label="Relationship Strength" value={selected.RelationshipStrength != null ? (STRENGTH_LABELS[selected.RelationshipStrength] ?? String(selected.RelationshipStrength)) : undefined} />
-              {(selected.DecisionMakerFlag || selected.ChampionFlag || selected.DonorFlag || selected.SpeakerFlag || selected.AdvisoryBoardFlag || selected.HiringContactFlag || selected.InternshipContactFlag || selected.ResearchContactFlag || selected.LegislativeContactFlag) && (
-                <div className="col-span-2">
-                  <dt className="text-xs font-medium text-gray-500">Roles</dt>
-                  <dd className="mt-1 flex flex-wrap gap-1">
-                    {selected.DecisionMakerFlag && <Badge label="Decision Maker" color="indigo" />}
-                    {selected.ChampionFlag && <Badge label="Champion" color="emerald" />}
-                    {selected.DonorFlag && <Badge label="Donor" color="amber" />}
-                    {selected.SpeakerFlag && <Badge label="Speaker" color="purple" />}
-                    {selected.AdvisoryBoardFlag && <Badge label="Advisory Board" color="blue" />}
-                    {selected.HiringContactFlag && <Badge label="Hiring Contact" color="cyan" />}
-                    {selected.InternshipContactFlag && <Badge label="Internship Contact" color="rose" />}
-                    {selected.ResearchContactFlag && <Badge label="Research Contact" color="red" />}
-                    {selected.LegislativeContactFlag && <Badge label="Legislative Contact" color="slate" />}
-                  </dd>
-                </div>
-              )}
-              {selected.Notes && <div className="col-span-2"><Detail label="Notes" value={selected.Notes} /></div>}
-            </dl>
-            <div className="mt-6 rounded-xl border border-gray-200 bg-gray-50/80 p-4">
-              <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Add to list</p>
-              <div className="mt-3 flex flex-wrap gap-2">
-                <select
-                  id="contact-add-list"
-                  className={`${selectClass} min-w-0 flex-1`}
-                  value={listPickId}
-                  onChange={(e) => setListPickId(e.target.value)}
-                >
-                  <option value="">Select list…</option>
-                  {contactLists.map((l) => (
-                    <option key={l.ListID} value={l.ListID}>
-                      {l.Name}
-                    </option>
-                  ))}
-                </select>
-                <button
-                  type="button"
-                  disabled={!listPickId}
-                  onClick={handleAddToList}
-                  className="rounded-lg bg-white px-3 py-2 text-sm font-medium text-indigo-700 ring-1 ring-indigo-200 hover:bg-indigo-50 disabled:opacity-50"
-                >
-                  Add
-                </button>
-              </div>
-            </div>
-            <div className="mt-6 flex items-center justify-between">
-              <button type="button" onClick={() => handleDelete(selected.ContactID)} className="rounded-lg border border-red-200 bg-white px-4 py-2 text-sm font-medium text-red-600 hover:bg-red-50 transition-colors">Delete</button>
-              <button onClick={() => openEditForm(selected)} className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-indigo-500 transition-colors">Edit</button>
-            </div>
-          </>
-        )}
-        {selected && showEdit && (
-          <>
-            <div className="grid grid-cols-2 gap-x-6 gap-y-4">
-              <FormField label="First Name" required>{id => <input id={id} className={inputClass} value={editForm.FirstName ?? ''} onChange={e => setEditForm(f => ({ ...f, FirstName: e.target.value }))} />}</FormField>
-              <FormField label="Last Name" required>{id => <input id={id} className={inputClass} value={editForm.LastName ?? ''} onChange={e => setEditForm(f => ({ ...f, LastName: e.target.value }))} />}</FormField>
-              <FormField label="Title">{id => <input id={id} className={inputClass} value={editForm.Title ?? ''} onChange={e => setEditForm(f => ({ ...f, Title: e.target.value }))} />}</FormField>
-              <FormField label="Email">{id => <input id={id} type="email" className={inputClass} value={editForm.Email ?? ''} onChange={e => setEditForm(f => ({ ...f, Email: e.target.value }))} />}</FormField>
-              <FormField label="Phone">{id => <input id={id} className={inputClass} value={editForm.Phone ?? ''} onChange={e => setEditForm(f => ({ ...f, Phone: e.target.value }))} />}</FormField>
-              <FormField label="Organization">{id => (<select id={id} className={selectClass} value={editForm.OrganizationID ?? ''} onChange={e => setEditForm(f => ({ ...f, OrganizationID: e.target.value }))}><option value="">Select…</option>{orgs.map(o => <option key={o.OrganizationID} value={o.OrganizationID}>{o.OrganizationName}</option>)}</select>)}</FormField>
-              <FormField label="Functional Area">{id => (<select id={id} className={selectClass} value={editForm.FunctionalAreaID ?? ''} onChange={e => setEditForm(f => ({ ...f, FunctionalAreaID: e.target.value }))}><option value="">Select…</option>{functionalAreas.map(i => <option key={i.id} value={i.id}>{i.name}</option>)}</select>)}</FormField>
-              <FormField label="Influence Level">{id => (<select id={id} className={selectClass} value={editForm.InfluenceLevelID ?? ''} onChange={e => setEditForm(f => ({ ...f, InfluenceLevelID: e.target.value }))}><option value="">Select…</option>{influenceLevels.map(i => <option key={i.id} value={i.id}>{i.name}</option>)}</select>)}</FormField>
-              <FormField label="Risk Tolerance">{id => (<select id={id} className={selectClass} value={editForm.RiskToleranceID ?? ''} onChange={e => setEditForm(f => ({ ...f, RiskToleranceID: e.target.value }))}><option value="">Select…</option>{riskTolerances.map(i => <option key={i.id} value={i.id}>{i.name}</option>)}</select>)}</FormField>
-              <FormField label="Personal Orientation">{id => (<select id={id} className={selectClass} value={editForm.PersonalOrientationID ?? ''} onChange={e => setEditForm(f => ({ ...f, PersonalOrientationID: e.target.value }))}><option value="">Select…</option>{personalOrientations.map(i => <option key={i.id} value={i.id}>{i.name}</option>)}</select>)}</FormField>
-
-              <div className="col-span-2"><h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mt-4 mb-2">Name Details</h3></div>
-              <FormField label="Prefix">{id => <input id={id} className={inputClass} value={editForm.Prefix ?? ''} onChange={e => handleEditFormChange('Prefix', e.target.value)} />}</FormField>
-              <FormField label="Preferred Name">{id => <input id={id} className={inputClass} value={editForm.PreferredName ?? ''} onChange={e => handleEditFormChange('PreferredName', e.target.value)} />}</FormField>
-
-              <div className="col-span-2"><h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mt-4 mb-2">Contact Details</h3></div>
-              <FormField label="Secondary Email">{id => <input id={id} type="email" className={inputClass} value={editForm.SecondaryEmail ?? ''} onChange={e => handleEditFormChange('SecondaryEmail', e.target.value)} />}</FormField>
-              <FormField label="Office Phone">{id => <input id={id} className={inputClass} value={editForm.OfficePhone ?? ''} onChange={e => handleEditFormChange('OfficePhone', e.target.value)} />}</FormField>
-              <FormField label="LinkedIn URL">{id => <input id={id} className={inputClass} value={editForm.LinkedInURL ?? ''} onChange={e => handleEditFormChange('LinkedInURL', e.target.value)} />}</FormField>
-              <FormField label="Department">{id => <input id={id} className={inputClass} value={editForm.Department ?? ''} onChange={e => handleEditFormChange('Department', e.target.value)} />}</FormField>
-              <FormField label="Seniority Level">{id => (<select id={id} className={selectClass} value={editForm.SeniorityLevelID ?? ''} onChange={e => handleEditFormChange('SeniorityLevelID', e.target.value)}><option value="">Select…</option>{seniorityLevels.map(i => <option key={i.id} value={i.id}>{i.name}</option>)}</select>)}</FormField>
-              <FormField label="Contact Type">{id => (<select id={id} className={selectClass} value={editForm.ContactTypeID ?? ''} onChange={e => handleEditFormChange('ContactTypeID', e.target.value)}><option value="">Select…</option>{contactTypes.map(i => <option key={i.id} value={i.id}>{i.name}</option>)}</select>)}</FormField>
-              <FormField label="Persona Type">{id => (<select id={id} className={selectClass} value={editForm.PersonaTypeID ?? ''} onChange={e => handleEditFormChange('PersonaTypeID', e.target.value)}><option value="">Select…</option>{personaTypes.map(i => <option key={i.id} value={i.id}>{i.name}</option>)}</select>)}</FormField>
-
-              <div className="col-span-2"><h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mt-4 mb-2">Location</h3></div>
-              <FormField label="City">{id => <input id={id} className={inputClass} value={editForm.City ?? ''} onChange={e => handleEditFormChange('City', e.target.value)} />}</FormField>
-              <FormField label="State">{id => <input id={id} className={inputClass} value={editForm.State ?? ''} onChange={e => handleEditFormChange('State', e.target.value)} />}</FormField>
-              <FormField label="Country">{id => <input id={id} className={inputClass} value={editForm.Country ?? ''} onChange={e => handleEditFormChange('Country', e.target.value)} />}</FormField>
-
-              <div className="col-span-2"><h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mt-4 mb-2">Relationship</h3></div>
-              <FormField label="Relationship Owner">{id => <input id={id} className={inputClass} value={editForm.RelationshipOwner ?? ''} onChange={e => handleEditFormChange('RelationshipOwner', e.target.value)} />}</FormField>
-              <FormField label="Communication Preference">{id => (<select id={id} className={selectClass} value={editForm.CommunicationPreference ?? ''} onChange={e => handleEditFormChange('CommunicationPreference', e.target.value)}><option value="">Select…</option><option value="Email">Email</option><option value="Phone">Phone</option><option value="In-Person">In-Person</option><option value="Video Call">Video Call</option></select>)}</FormField>
-              <FormField label="Warmth Status">{id => (<select id={id} className={selectClass} value={editForm.WarmthStatus ?? ''} onChange={e => handleEditFormChange('WarmthStatus', e.target.value)}><option value="">Select…</option><option value="Cold">Cold</option><option value="Warm">Warm</option><option value="Hot">Hot</option></select>)}</FormField>
-              <FormField label="Relationship Strength">{id => (<select id={id} className={selectClass} value={editForm.RelationshipStrength ?? ''} onChange={e => handleEditFormChange('RelationshipStrength', e.target.value)}><option value="">Select…</option><option value="Weak">Weak</option><option value="Developing">Developing</option><option value="Strong">Strong</option><option value="Very Strong">Very Strong</option></select>)}</FormField>
-
-              <div className="col-span-2 flex gap-6">
-                <label className="flex items-center gap-2 text-sm font-medium text-gray-700"><input type="checkbox" className="h-4 w-4 rounded border-gray-300 text-blue-600" checked={editForm.Alumni === '1'} onChange={e => setEditForm(f => ({ ...f, Alumni: e.target.checked ? '1' : '0' }))} /> Alumni</label>
-                <label className="flex items-center gap-2 text-sm font-medium text-gray-700"><input type="checkbox" className="h-4 w-4 rounded border-gray-300 text-blue-600" checked={editForm.ClearanceFamiliarity === '1'} onChange={e => setEditForm(f => ({ ...f, ClearanceFamiliarity: e.target.checked ? '1' : '0' }))} /> Clearance Familiarity</label>
-                <label className="flex items-center gap-2 text-sm font-medium text-gray-700"><input type="checkbox" className="h-4 w-4 rounded border-gray-300 text-blue-600" checked={editForm.IsPrimaryContact === '1'} onChange={e => setEditForm(f => ({ ...f, IsPrimaryContact: e.target.checked ? '1' : '0' }))} /> Primary Contact</label>
-              </div>
-
-              <div className="col-span-2"><h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mt-4 mb-2">Role Flags</h3></div>
-              <div className="col-span-2 grid grid-cols-3 gap-3">
-                <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={editForm.DecisionMakerFlag === 'true'} onChange={e => handleEditFormChange('DecisionMakerFlag', e.target.checked ? 'true' : 'false')} className="rounded border-gray-300 text-blue-600 focus:ring-blue-500" /> Decision Maker</label>
-                <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={editForm.ChampionFlag === 'true'} onChange={e => handleEditFormChange('ChampionFlag', e.target.checked ? 'true' : 'false')} className="rounded border-gray-300 text-blue-600 focus:ring-blue-500" /> Champion</label>
-                <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={editForm.DonorFlag === 'true'} onChange={e => handleEditFormChange('DonorFlag', e.target.checked ? 'true' : 'false')} className="rounded border-gray-300 text-blue-600 focus:ring-blue-500" /> Donor</label>
-                <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={editForm.SpeakerFlag === 'true'} onChange={e => handleEditFormChange('SpeakerFlag', e.target.checked ? 'true' : 'false')} className="rounded border-gray-300 text-blue-600 focus:ring-blue-500" /> Speaker</label>
-                <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={editForm.AdvisoryBoardFlag === 'true'} onChange={e => handleEditFormChange('AdvisoryBoardFlag', e.target.checked ? 'true' : 'false')} className="rounded border-gray-300 text-blue-600 focus:ring-blue-500" /> Advisory Board</label>
-                <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={editForm.HiringContactFlag === 'true'} onChange={e => handleEditFormChange('HiringContactFlag', e.target.checked ? 'true' : 'false')} className="rounded border-gray-300 text-blue-600 focus:ring-blue-500" /> Hiring Contact</label>
-                <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={editForm.InternshipContactFlag === 'true'} onChange={e => handleEditFormChange('InternshipContactFlag', e.target.checked ? 'true' : 'false')} className="rounded border-gray-300 text-blue-600 focus:ring-blue-500" /> Internship Contact</label>
-                <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={editForm.ResearchContactFlag === 'true'} onChange={e => handleEditFormChange('ResearchContactFlag', e.target.checked ? 'true' : 'false')} className="rounded border-gray-300 text-blue-600 focus:ring-blue-500" /> Research Contact</label>
-                <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={editForm.LegislativeContactFlag === 'true'} onChange={e => handleEditFormChange('LegislativeContactFlag', e.target.checked ? 'true' : 'false')} className="rounded border-gray-300 text-blue-600 focus:ring-blue-500" /> Legislative Contact</label>
-              </div>
-
-              <div className="col-span-2"><FormField label="Notes">{id => <textarea id={id} rows={3} className={inputClass} value={editForm.Notes ?? ''} onChange={e => setEditForm(f => ({ ...f, Notes: e.target.value }))} />}</FormField></div>
-            </div>
-            <div className="mt-6 flex justify-end gap-3">
-              <button onClick={() => setShowEdit(false)} className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors">Cancel</button>
-              <button onClick={handleEditSave} disabled={editSaving || !editForm.FirstName || !editForm.LastName} className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-indigo-500 disabled:opacity-50 transition-colors">{editSaving ? 'Saving…' : 'Save Changes'}</button>
-            </div>
-          </>
-        )}
-      </Modal>
-
       {/* Create Modal */}
       <Modal isOpen={showCreate} onClose={() => { setShowCreate(false); setForm({}); }} title="New Contact" size="xl">
         <div className="grid grid-cols-2 gap-x-6 gap-y-4">
@@ -655,7 +383,8 @@ export default function ContactsPage() {
           <FormField label="Last Name" required>{id => <input id={id} className={inputClass} value={form.LastName ?? ''} onChange={e => setForm(f => ({ ...f, LastName: e.target.value }))} />}</FormField>
           <FormField label="Organization">{id => (<select id={id} className={selectClass} value={form.OrganizationID ?? ''} onChange={e => setForm(f => ({ ...f, OrganizationID: e.target.value }))}><option value="">Select…</option>{orgs.map(o => <option key={o.OrganizationID} value={o.OrganizationID}>{o.OrganizationName}</option>)}</select>)}</FormField>
           <FormField label="Email">{id => <input id={id} type="email" className={inputClass} value={form.Email ?? ''} onChange={e => setForm(f => ({ ...f, Email: e.target.value }))} />}</FormField>
-          <FormField label="Phone">{id => <input id={id} className={inputClass} value={form.Phone ?? ''} onChange={e => setForm(f => ({ ...f, Phone: e.target.value }))} />}</FormField>
+          <FormField label="Work Phone">{id => <input id={id} className={inputClass} value={form.WorkPhone ?? ''} onChange={e => setForm(f => ({ ...f, WorkPhone: e.target.value }))} />}</FormField>
+          <FormField label="Cell Phone">{id => <input id={id} className={inputClass} value={form.CellPhone ?? ''} onChange={e => setForm(f => ({ ...f, CellPhone: e.target.value }))} />}</FormField>
           <FormField label="Title">{id => <input id={id} className={inputClass} value={form.Title ?? ''} onChange={e => setForm(f => ({ ...f, Title: e.target.value }))} />}</FormField>
           <FormField label="Functional Area">{id => (<select id={id} className={selectClass} value={form.FunctionalAreaID ?? ''} onChange={e => setForm(f => ({ ...f, FunctionalAreaID: e.target.value }))}><option value="">Select…</option>{functionalAreas.map(i => <option key={i.id} value={i.id}>{i.name}</option>)}</select>)}</FormField>
           <FormField label="Influence Level">{id => (<select id={id} className={selectClass} value={form.InfluenceLevelID ?? ''} onChange={e => setForm(f => ({ ...f, InfluenceLevelID: e.target.value }))}><option value="">Select…</option>{influenceLevels.map(i => <option key={i.id} value={i.id}>{i.name}</option>)}</select>)}</FormField>
@@ -708,8 +437,4 @@ export default function ContactsPage() {
       </Modal>
     </div>
   );
-}
-
-function Detail({ label, value }: { label: string; value?: string | null }) {
-  return <div><dt className="text-xs font-medium text-gray-500">{label}</dt><dd className="mt-0.5 text-gray-900">{value || '—'}</dd></div>;
 }

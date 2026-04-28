@@ -27,19 +27,31 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     const rows = await query(
       `UPDATE dbo.JourneyLog SET
         OrganizationID = @OrganizationID,
+        ContactID = @ContactID,
         JourneyStageID = @JourneyStageID,
         LogDate = @LogDate,
+        EventType = @EventType,
+        Outcome = @Outcome,
+        NextStep = @NextStep,
+        NextStepDate = @NextStepDate,
+        Owner = @Owner,
         Notes = @Notes,
-        TriggeredBy = @TriggeredBy
+        Summary = @Summary
        OUTPUT INSERTED.*
        WHERE JourneyLogID = @id`,
       {
         id: Number(id),
         OrganizationID: body.OrganizationID,
+        ContactID: body.ContactID ?? null,
         JourneyStageID: body.JourneyStageID,
         LogDate: body.LogDate,
+        EventType: body.EventType ?? null,
+        Outcome: body.Outcome ?? null,
+        NextStep: body.NextStep ?? null,
+        NextStepDate: body.NextStepDate ?? null,
+        Owner: body.Owner ?? null,
         Notes: body.Notes ?? null,
-        TriggeredBy: body.TriggeredBy ?? null,
+        Summary: body.Summary ?? null,
       },
     );
     if (rows.length === 0) return NextResponse.json({ error: 'Not found' }, { status: 404 });

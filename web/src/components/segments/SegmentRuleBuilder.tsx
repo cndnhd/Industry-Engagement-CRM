@@ -54,6 +54,7 @@ export const ORG_FIELDS: Record<string, FieldMeta> = {
 export const CONTACT_FIELDS: Record<string, FieldMeta> = {
   FirstName: { label: 'First Name', type: 'string' },
   LastName: { label: 'Last Name', type: 'string' },
+  Title: { label: 'Title / Job Title', type: 'string' },
   Email: { label: 'Email', type: 'string' },
   OrganizationID: { label: 'Organization', type: 'id' },
   FunctionalAreaID: { label: 'Functional Area', type: 'id' },

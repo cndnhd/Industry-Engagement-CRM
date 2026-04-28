@@ -14,6 +14,8 @@ import type {
   MaturityDistribution,
   OverdueFollowUp,
   DashboardStats,
+  RecentJourneyLog,
+  ActivityDistribution,
 } from '@/lib/api';
 import type { Organization, EngagementEvent, OrganizationScore } from '@/types';
 import { getScoreBadge } from '@/types';
@@ -137,6 +139,71 @@ function OverdueTable({ rows }: { rows: OverdueFollowUp[] }) {
   );
 }
 
+function RecentJourneyTable({ rows }: { rows: RecentJourneyLog[] }) {
+  return (
+    <div className="bg-white rounded-xl ring-1 ring-gray-950/5 shadow-sm p-6">
+      <h2 className="text-base font-semibold text-gray-900 mb-4">Recent Journey Entries</h2>
+      {rows.length === 0 ? (
+        <p className="text-sm text-gray-400">No recent journey entries.</p>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="min-w-full text-sm">
+            <thead>
+              <tr className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="pb-2 pr-4">Organization</th>
+                <th className="pb-2 pr-4">Stage</th>
+                <th className="pb-2 pr-4">Date</th>
+                <th className="pb-2 pr-4">Event Type</th>
+                <th className="pb-2 pr-4">Outcome</th>
+                <th className="pb-2">Owner</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-50">
+              {rows.map((r) => (
+                <tr key={r.JourneyLogID}>
+                  <td className="py-2.5 pr-4 font-medium text-gray-900">{r.OrganizationName ?? '—'}</td>
+                  <td className="py-2.5 pr-4 text-gray-600">{r.JourneyStageName ?? '—'}</td>
+                  <td className="py-2.5 pr-4 text-gray-600 whitespace-nowrap">
+                    {r.LogDate ? new Date(r.LogDate).toLocaleDateString() : '—'}
+                  </td>
+                  <td className="py-2.5 pr-4 text-gray-600">{r.EventType ?? '—'}</td>
+                  <td className="py-2.5 pr-4 text-gray-600">{r.Outcome ?? '—'}</td>
+                  <td className="py-2.5 text-gray-600">{r.Owner ?? '—'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ActivityDistributionChart({ data }: { data: ActivityDistribution[] }) {
+  if (data.length === 0) {
+    return <p className="text-sm text-gray-400">No activity data yet.</p>;
+  }
+  const max = Math.max(...data.map((d) => d.count));
+  return (
+    <div className="space-y-2.5">
+      {data.map((d) => (
+        <div key={d.eventType} className="flex items-center gap-3">
+          <span className="w-28 text-sm text-gray-700 truncate text-right flex-shrink-0">
+            {d.eventType}
+          </span>
+          <div className="flex-1 h-5 bg-gray-100 rounded-full overflow-hidden">
+            <div
+              className="h-full rounded-full bg-blue-600 transition-all"
+              style={{ width: `${Math.max((d.count / max) * 100, 4)}%` }}
+            />
+          </div>
+          <span className="w-8 text-sm font-medium text-gray-900 text-right">{d.count}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function DormantAlert({ count }: { count: number }) {
   if (count === 0) return null;
   return (
@@ -168,6 +235,8 @@ export default function DashboardPage() {
   const [tagDistribution, setTagDistribution] = useState<TagDistribution[]>([]);
   const [maturityDistribution, setMaturityDistribution] = useState<MaturityDistribution[]>([]);
   const [overdueFollowUps, setOverdueFollowUps] = useState<OverdueFollowUp[]>([]);
+  const [recentJourneyLogs, setRecentJourneyLogs] = useState<RecentJourneyLog[]>([]);
+  const [activityDistribution, setActivityDistribution] = useState<ActivityDistribution[]>([]);
   const [topOrgs, setTopOrgs] = useState<RankedScore[]>([]);
   const [recentEvents, setRecentEvents] = useState<EngagementEvent[]>([]);
   const [orgMap, setOrgMap] = useState<Record<number, string>>({});
@@ -188,6 +257,8 @@ export default function DashboardPage() {
         setTagDistribution(dashboard.tagDistribution);
         setMaturityDistribution(dashboard.maturityDistribution);
         setOverdueFollowUps(dashboard.overdueFollowUps);
+        setRecentJourneyLogs(dashboard.recentJourneyLogs);
+        setActivityDistribution(dashboard.activityDistribution);
         setTopOrgs(scores.slice(0, 8));
 
         const map: Record<number, string> = {};
@@ -288,8 +359,17 @@ export default function DashboardPage() {
         </div>
       </div>
 
+      {/* Activity distribution chart */}
+      <div className="bg-white rounded-xl ring-1 ring-gray-950/5 shadow-sm p-6">
+        <h2 className="text-base font-semibold text-gray-900 mb-4">Activity Distribution</h2>
+        <ActivityDistributionChart data={activityDistribution} />
+      </div>
+
       {/* Overdue follow-ups table */}
       <OverdueTable rows={overdueFollowUps} />
+
+      {/* Recent journey entries table */}
+      <RecentJourneyTable rows={recentJourneyLogs} />
 
       {/* Existing panels */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

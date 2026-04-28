@@ -145,20 +145,29 @@ export default function TagsPage() {
               <button
                 key={tag.id}
                 onClick={() => handleSelectTag(tag)}
-                className={`text-left rounded-xl p-5 shadow-sm ring-1 transition-all ${
+                className={`text-left rounded-xl p-5 shadow-sm ring-1 transition-all cursor-pointer ${
                   isSelected
-                    ? `ring-2 ${ringColor(color)} ${bgActive(color)}`
-                    : 'ring-gray-950/5 bg-white hover:shadow-md'
+                    ? `ring-2 ${ringColor(color)} ${bgActive(color)} scale-[1.02]`
+                    : 'ring-gray-950/5 bg-white hover:shadow-md hover:scale-[1.01]'
                 }`}
               >
                 <div className="flex items-start justify-between gap-2">
-                  <div className={`inline-flex h-8 w-8 items-center justify-center rounded-lg ${dotBg(color)}`}>
-                    <svg className={`h-4 w-4 ${dotText(color)}`} fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M9.568 3H5.25A2.25 2.25 0 003 5.25v4.318c0 .597.237 1.17.659 1.591l9.581 9.581c.699.699 1.78.872 2.607.33a18.095 18.095 0 005.223-5.223c.542-.827.369-1.908-.33-2.607L11.16 3.66A2.25 2.25 0 009.568 3z" />
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M6 6h.008v.008H6V6z" />
-                    </svg>
+                  <div className="relative">
+                    <div className={`inline-flex h-8 w-8 items-center justify-center rounded-lg ${dotBg(color)}`}>
+                      <svg className={`h-4 w-4 ${dotText(color)}`} fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M9.568 3H5.25A2.25 2.25 0 003 5.25v4.318c0 .597.237 1.17.659 1.591l9.581 9.581c.699.699 1.78.872 2.607.33a18.095 18.095 0 005.223-5.223c.542-.827.369-1.908-.33-2.607L11.16 3.66A2.25 2.25 0 009.568 3z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M6 6h.008v.008H6V6z" />
+                      </svg>
+                    </div>
+                    <span className={`absolute -top-2 -right-2 inline-flex h-5 min-w-5 items-center justify-center rounded-full px-1 text-xs font-bold text-white ${dotBg(color).replace('100', '600')}`}>
+                      {tag.orgCount}
+                    </span>
                   </div>
-                  <span className={`text-2xl font-bold ${numColor(color)}`}>{tag.orgCount}</span>
+                  {isSelected && (
+                    <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${dotBg(color)} ${dotText(color)}`}>
+                      Active
+                    </span>
+                  )}
                 </div>
                 <p className="mt-3 text-sm font-semibold text-gray-900">{tag.name}</p>
                 <p className="mt-0.5 text-xs text-gray-500">
@@ -173,11 +182,23 @@ export default function TagsPage() {
       {selectedTag && (
         <div className="rounded-xl bg-white shadow-sm ring-1 ring-gray-950/5 overflow-hidden">
           <div className="flex items-center justify-between border-b border-gray-100 px-6 py-4">
-            <div>
-              <h3 className="text-base font-semibold text-gray-900">{selectedTag.name}</h3>
-              <p className="text-sm text-gray-500">
-                {selectedTag.orgCount} organization{selectedTag.orgCount !== 1 ? 's' : ''} tagged
-              </p>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => { setSelectedTag(null); setTagOrgs([]); setShowAddOrg(false); }}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-sm font-medium text-gray-600 hover:bg-gray-50 hover:text-gray-900 transition-colors"
+              >
+                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18" />
+                </svg>
+                All Tags
+              </button>
+              <div className="h-6 w-px bg-gray-200" />
+              <div>
+                <h3 className="text-base font-semibold text-gray-900">{selectedTag.name}</h3>
+                <p className="text-sm text-gray-500">
+                  {selectedTag.orgCount} organization{selectedTag.orgCount !== 1 ? 's' : ''} tagged
+                </p>
+              </div>
             </div>
             <button
               onClick={openAddOrg}
@@ -235,45 +256,49 @@ export default function TagsPage() {
             ) : tagOrgs.length === 0 ? (
               <div className="text-sm text-gray-400 py-4 text-center">No organizations assigned to this tag yet.</div>
             ) : (
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-gray-100 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    <th className="pb-2">Organization</th>
-                    <th className="pb-2">Location</th>
-                    <th className="pb-2">Status</th>
-                    <th className="pb-2">Owner</th>
-                    <th className="pb-2 w-10"></th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-50">
-                  {tagOrgs.map(o => (
-                    <tr key={o.OrganizationID} className="hover:bg-gray-50">
-                      <td className="py-2.5">
-                        <Link href={`/organizations/${o.OrganizationID}`} className="font-medium text-blue-600 hover:text-blue-800">
-                          {o.OrganizationName}
-                        </Link>
-                      </td>
-                      <td className="py-2.5 text-gray-500">{[o.City, o.State].filter(Boolean).join(', ') || '—'}</td>
-                      <td className="py-2.5">
-                        {o.EngagementStatus ? <Badge label={o.EngagementStatus} color={o.EngagementStatus === 'Active' ? 'emerald' : 'slate'} size="sm" /> : '—'}
-                      </td>
-                      <td className="py-2.5 text-gray-500">{o.AssignedOwner || '—'}</td>
-                      <td className="py-2.5">
-                        <button
-                          onClick={() => handleRemoveOrg(o.OrganizationID)}
-                          disabled={saving}
-                          className="rounded p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 disabled:opacity-50"
-                          title="Remove from tag"
-                        >
-                          <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                          </svg>
-                        </button>
-                      </td>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-gray-100 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      <th className="pb-2 pr-4">Organization</th>
+                      <th className="pb-2 pr-4">City</th>
+                      <th className="pb-2 pr-4">State</th>
+                      <th className="pb-2 pr-4">Engagement Status</th>
+                      <th className="pb-2 pr-4">Assigned Owner</th>
+                      <th className="pb-2 w-10"></th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody className="divide-y divide-gray-50">
+                    {tagOrgs.map(o => (
+                      <tr key={o.OrganizationID} className="hover:bg-gray-50 transition-colors">
+                        <td className="py-2.5 pr-4">
+                          <Link href={`/organizations/${o.OrganizationID}`} className="font-medium text-blue-600 hover:text-blue-800">
+                            {o.OrganizationName}
+                          </Link>
+                        </td>
+                        <td className="py-2.5 pr-4 text-gray-500">{o.City || '—'}</td>
+                        <td className="py-2.5 pr-4 text-gray-500">{o.State || '—'}</td>
+                        <td className="py-2.5 pr-4">
+                          {o.EngagementStatus ? <Badge label={o.EngagementStatus} color={statusColor(o.EngagementStatus)} size="sm" /> : '—'}
+                        </td>
+                        <td className="py-2.5 pr-4 text-gray-500">{o.AssignedOwner || '—'}</td>
+                        <td className="py-2.5">
+                          <button
+                            onClick={() => handleRemoveOrg(o.OrganizationID)}
+                            disabled={saving}
+                            className="rounded p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 disabled:opacity-50 transition-colors"
+                            title="Remove from tag"
+                          >
+                            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             )}
           </div>
         </div>
@@ -296,4 +321,12 @@ function dotBg(c: string) { return COLOR_MAP[c]?.dot ?? 'bg-gray-100'; }
 function dotText(c: string) { return COLOR_MAP[c]?.dotText ?? 'text-gray-600'; }
 function ringColor(c: string) { return COLOR_MAP[c]?.ring ?? 'ring-gray-400'; }
 function bgActive(c: string) { return COLOR_MAP[c]?.bg ?? 'bg-gray-50'; }
-function numColor(c: string) { return COLOR_MAP[c]?.num ?? 'text-gray-600'; }
+
+function statusColor(status: string): BadgeColor {
+  const s = status.toLowerCase();
+  if (s === 'active') return 'emerald';
+  if (s === 'prospective' || s === 'prospect') return 'blue';
+  if (s === 'inactive' || s === 'dormant') return 'slate';
+  if (s === 'pending') return 'amber';
+  return 'slate';
+}

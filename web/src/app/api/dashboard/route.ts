@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server';
 
 export async function GET() {
   try {
-    const [statsRows, tagRows, maturityRows, overdueRows] = await Promise.all([
+    const [statsRows, tagRows, maturityRows, overdueRows, recentJourneyRows, activityDistRows] = await Promise.all([
       query<{
         totalOrgs: number;
         totalContacts: number;
@@ -67,6 +67,34 @@ export async function GET() {
         WHERE o.NextActionDate IS NOT NULL AND o.NextActionDate < GETDATE()
         ORDER BY o.NextActionDate ASC
       `),
+
+      query<{
+        JourneyLogID: number;
+        OrganizationName: string | null;
+        JourneyStageName: string | null;
+        LogDate: string | null;
+        EventType: string | null;
+        Outcome: string | null;
+        Notes: string | null;
+        Owner: string | null;
+      }>(`
+        SELECT TOP 10
+          jl.JourneyLogID, o.OrganizationName, js.JourneyStageName,
+          jl.LogDate, jl.EventType, jl.Outcome, jl.Notes, jl.Owner
+        FROM dbo.JourneyLog jl
+        LEFT JOIN dbo.JourneyStages js ON jl.JourneyStageID = js.JourneyStageID
+        LEFT JOIN dbo.Organizations o ON jl.OrganizationID = o.OrganizationID
+        ORDER BY jl.LogDate DESC
+      `),
+
+      query<{ eventType: string; count: number }>(`
+        SELECT
+          ISNULL(EventType, 'Unspecified') AS eventType,
+          COUNT(*) AS count
+        FROM dbo.JourneyLog
+        GROUP BY EventType
+        ORDER BY count DESC
+      `),
     ]);
 
     const stats = statsRows[0];
@@ -87,6 +115,8 @@ export async function GET() {
       tagDistribution: tagRows,
       maturityDistribution: maturityRows,
       overdueFollowUps: overdueRows,
+      recentJourneyLogs: recentJourneyRows,
+      activityDistribution: activityDistRows,
     });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Database error';

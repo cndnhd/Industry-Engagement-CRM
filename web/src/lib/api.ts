@@ -109,6 +109,8 @@ export const removeOrganizationFacultyLinkage = (orgId: number, linkageId: numbe
 
 // Contacts
 export const fetchContacts = () => get<Contact[]>('/contacts');
+export const fetchContactsByOrg = (orgId: number) => get<Contact[]>(`/contacts?organizationId=${orgId}`);
+export const fetchContact = (id: number) => get<Contact>(`/contacts/${id}`);
 export const createContact = (body: Record<string, unknown>) => post<Contact>('/contacts', body);
 export const updateContact = (id: number, body: Record<string, unknown>) => put<Contact>(`/contacts/${id}`, body);
 export const deleteContact = (id: number) => del(`/contacts/${id}`);
@@ -215,11 +217,26 @@ export type OverdueFollowUp = {
   LastMeaningfulEngagement: string | null;
 };
 
+export type RecentJourneyLog = {
+  JourneyLogID: number;
+  OrganizationName: string | null;
+  JourneyStageName: string | null;
+  LogDate: string | null;
+  EventType: string | null;
+  Outcome: string | null;
+  Notes: string | null;
+  Owner: string | null;
+};
+
+export type ActivityDistribution = { eventType: string; count: number };
+
 export type DashboardResponse = {
   stats: DashboardStats;
   tagDistribution: TagDistribution[];
   maturityDistribution: MaturityDistribution[];
   overdueFollowUps: OverdueFollowUp[];
+  recentJourneyLogs: RecentJourneyLog[];
+  activityDistribution: ActivityDistribution[];
 };
 
 export const fetchDashboardStats = () => get<DashboardResponse>('/dashboard');

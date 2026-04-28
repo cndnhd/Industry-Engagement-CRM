@@ -17,6 +17,8 @@ import {
   fetchMaturityHistory,
   fetchJourneyLogs,
   createJourneyLog,
+  updateJourneyLog,
+  deleteJourneyLog,
   addMaturityTransition,
   addEcosystemLink,
   addOrganizationTag,
@@ -43,6 +45,9 @@ import Badge from '@/components/ui/Badge';
 import ScoreBar from '@/components/ui/ScoreBar';
 import EmptyState from '@/components/ui/EmptyState';
 import Modal from '@/components/ui/Modal';
+import JourneyTimeline from '@/components/journey/JourneyTimeline';
+import JourneyEntryForm from '@/components/journey/JourneyEntryForm';
+import type { JourneyFormData } from '@/components/journey/JourneyEntryForm';
 
 type Tab =
   | 'contacts' | 'engagements' | 'opportunities' | 'faculty'
@@ -1252,101 +1257,93 @@ function AlignmentsTab({ data, orgId, lookups, onRefresh }: {
 function JourneyTab({ data, orgId, lookups, onRefresh }: {
   data?: JourneyLogRow[]; orgId: number; lookups: Lookups; onRefresh: () => void;
 }) {
-  const [showAdd, setShowAdd] = useState(false);
-  const [form, setForm] = useState<Record<string, string>>({});
+  const [showForm, setShowForm] = useState(false);
+  const [editingEntry, setEditingEntry] = useState<JourneyLogRow | null>(null);
   const [saving, setSaving] = useState(false);
-
-  async function handleAdd() {
-    setSaving(true);
-    try {
-      await createJourneyLog({
-        OrganizationID: orgId,
-        JourneyStageID: form.JourneyStageID ? Number(form.JourneyStageID) : null,
-        LogDate: form.LogDate || new Date().toISOString().split('T')[0],
-        Outcome: form.Outcome || null,
-        NextStep: form.NextStep || null,
-        Owner: form.Owner || null,
-        Notes: form.Notes || null,
-      });
-      setShowAdd(false);
-      setForm({});
-      onRefresh();
-    } catch (err) {
-      alert(err instanceof Error ? err.message : 'Failed to create journey log');
-    } finally {
-      setSaving(false);
-    }
-  }
 
   const sorted = [...(data ?? [])].sort(
     (a, b) => new Date(b.LogDate ?? '').getTime() - new Date(a.LogDate ?? '').getTime(),
   );
 
+  async function handleSave(formData: JourneyFormData) {
+    setSaving(true);
+    try {
+      const payload: Record<string, unknown> = {
+        OrganizationID: orgId,
+        JourneyStageID: formData.JourneyStageID || null,
+        LogDate: formData.LogDate || new Date().toISOString().split('T')[0],
+        EventType: formData.EventType || null,
+        Outcome: formData.Outcome || null,
+        NextStep: formData.NextStep || null,
+        NextStepDate: formData.NextStepDate || null,
+        Owner: formData.Owner || null,
+        Notes: formData.Notes || null,
+        Summary: formData.Summary || null,
+      };
+      if (editingEntry) {
+        await updateJourneyLog(editingEntry.JourneyLogID, payload);
+      } else {
+        await createJourneyLog(payload);
+      }
+      setShowForm(false);
+      setEditingEntry(null);
+      onRefresh();
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Failed to save journey log');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function handleEdit(entry: JourneyLog) {
+    setEditingEntry(entry as JourneyLogRow);
+    setShowForm(true);
+  }
+
+  async function handleDelete(id: number) {
+    try {
+      await deleteJourneyLog(id);
+      onRefresh();
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Failed to delete journey log');
+    }
+  }
+
+  function handleCancel() {
+    setShowForm(false);
+    setEditingEntry(null);
+  }
+
   return (
     <div>
       <div className="flex justify-end mb-4">
-        <button onClick={() => setShowAdd((v) => !v)} className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">
-          {showAdd ? 'Cancel' : 'Quick Add'}
-        </button>
+        {!showForm && (
+          <button onClick={() => { setEditingEntry(null); setShowForm(true); }} className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">
+            Add Entry
+          </button>
+        )}
       </div>
 
-      {showAdd && (
-        <div className="mb-6 rounded-lg border border-gray-200 p-4 space-y-3">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div>
-              <label className="text-xs font-medium text-gray-600">Journey Stage</label>
-              <select value={form.JourneyStageID ?? ''} onChange={(e) => setForm((f) => ({ ...f, JourneyStageID: e.target.value }))} className={INPUT_CLS}>
-                <option value="">— Select —</option>
-                {(lookups.journeyStages ?? []).map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="text-xs font-medium text-gray-600">Date</label>
-              <input type="date" value={form.LogDate ?? ''} onChange={(e) => setForm((f) => ({ ...f, LogDate: e.target.value }))} className={INPUT_CLS} />
-            </div>
-            <div>
-              <label className="text-xs font-medium text-gray-600">Outcome</label>
-              <input type="text" value={form.Outcome ?? ''} onChange={(e) => setForm((f) => ({ ...f, Outcome: e.target.value }))} className={INPUT_CLS} />
-            </div>
-            <div>
-              <label className="text-xs font-medium text-gray-600">Next Step</label>
-              <input type="text" value={form.NextStep ?? ''} onChange={(e) => setForm((f) => ({ ...f, NextStep: e.target.value }))} className={INPUT_CLS} />
-            </div>
-            <div>
-              <label className="text-xs font-medium text-gray-600">Owner</label>
-              <input type="text" value={form.Owner ?? ''} onChange={(e) => setForm((f) => ({ ...f, Owner: e.target.value }))} className={INPUT_CLS} />
-            </div>
-            <div>
-              <label className="text-xs font-medium text-gray-600">Notes</label>
-              <input type="text" value={form.Notes ?? ''} onChange={(e) => setForm((f) => ({ ...f, Notes: e.target.value }))} className={INPUT_CLS} />
-            </div>
-          </div>
-          <div className="flex justify-end">
-            <button onClick={handleAdd} disabled={saving} className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50">
-              {saving ? 'Saving…' : 'Add Entry'}
-            </button>
-          </div>
+      {showForm && (
+        <div className="mb-6 rounded-lg border border-gray-200 p-4">
+          <h3 className="text-sm font-semibold text-gray-800 mb-3">{editingEntry ? 'Edit Entry' : 'New Entry'}</h3>
+          <JourneyEntryForm
+            entry={editingEntry}
+            organizations={[]}
+            journeyStages={lookups.journeyStages ?? []}
+            onSave={handleSave}
+            onCancel={handleCancel}
+            fixedOrgId={orgId}
+            saving={saving}
+          />
         </div>
       )}
 
-      {sorted.length === 0 ? (
-        <EmptyState title="No journey log entries for this organization." />
-      ) : (
-        <div className="relative border-l-2 border-gray-200 ml-4 space-y-0">
-          {sorted.map((entry) => (
-            <div key={entry.JourneyLogID} className="relative pl-8 pb-6">
-              <div className="absolute left-[-9px] top-1 h-4 w-4 rounded-full bg-blue-600 ring-4 ring-white" />
-              <div className="text-xs text-gray-500 mb-0.5">
-                {entry.LogDate ? new Date(entry.LogDate).toLocaleDateString() : '—'}
-              </div>
-              <div className="font-medium text-gray-900">{entry.JourneyStageName ?? 'Unknown Stage'}</div>
-              {entry.Outcome && <div className="text-sm text-gray-600 mt-0.5">Outcome: {entry.Outcome}</div>}
-              {entry.NextStep && <div className="text-sm text-gray-600">Next: {entry.NextStep}</div>}
-              {entry.Owner && <div className="text-sm text-gray-400">Owner: {entry.Owner}</div>}
-            </div>
-          ))}
-        </div>
-      )}
+      <JourneyTimeline
+        entries={sorted}
+        onEdit={handleEdit}
+        onDelete={handleDelete}
+      />
     </div>
   );
 }

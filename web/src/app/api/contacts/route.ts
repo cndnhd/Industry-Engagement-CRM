@@ -1,12 +1,20 @@
 import { query } from '@/lib/db';
 import { NextRequest, NextResponse } from 'next/server';
 
-export async function GET() {
+function parseSqlNullError(message: string): string | null {
+  const m = message.match(/Cannot insert the value NULL into column '(\w+)'/);
+  return m ? m[1] : null;
+}
+
+export async function GET(req: NextRequest) {
   try {
-    const rows = await query(`
-      SELECT * FROM dbo.Contacts
-      ORDER BY LastName, FirstName
-    `);
+    const orgId = req.nextUrl.searchParams.get('organizationId');
+    const rows = orgId
+      ? await query(
+          `SELECT * FROM dbo.Contacts WHERE OrganizationID = @orgId ORDER BY LastName, FirstName`,
+          { orgId: Number(orgId) },
+        )
+      : await query(`SELECT * FROM dbo.Contacts ORDER BY LastName, FirstName`);
     return NextResponse.json(rows);
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Database error';
@@ -17,9 +25,18 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
+
+    if (!body.FirstName?.trim()) {
+      return NextResponse.json({ error: 'First Name is required', field: 'FirstName' }, { status: 400 });
+    }
+    if (!body.LastName?.trim()) {
+      return NextResponse.json({ error: 'Last Name is required', field: 'LastName' }, { status: 400 });
+    }
+
     const rows = await query(
       `INSERT INTO dbo.Contacts
-        (FirstName, LastName, Title, Email, Phone, OrganizationID, FunctionalAreaID,
+        (FirstName, LastName, Title, Email, Phone, WorkPhone, CellPhone,
+         OrganizationID, FunctionalAreaID,
          InfluenceLevelID, RiskToleranceID, PersonalOrientationID,
          Alumni, ClearanceFamiliarity, IsPrimaryContact, Notes, LinkedInURL,
          Prefix, MiddleName, Suffix, PreferredName, Department, SeniorityLevelID,
@@ -33,7 +50,8 @@ export async function POST(req: NextRequest) {
          LastContactDate, NextFollowUpDate, ArchivedFlag)
        OUTPUT INSERTED.*
        VALUES
-        (@FirstName, @LastName, @Title, @Email, @Phone, @OrganizationID, @FunctionalAreaID,
+        (@FirstName, @LastName, @Title, @Email, @Phone, @WorkPhone, @CellPhone,
+         @OrganizationID, @FunctionalAreaID,
          @InfluenceLevelID, @RiskToleranceID, @PersonalOrientationID,
          @Alumni, @ClearanceFamiliarity, @IsPrimaryContact, @Notes, @LinkedInURL,
          @Prefix, @MiddleName, @Suffix, @PreferredName, @Department, @SeniorityLevelID,
@@ -51,6 +69,8 @@ export async function POST(req: NextRequest) {
         Title: body.Title ?? body.JobTitle ?? null,
         Email: body.Email ?? null,
         Phone: body.Phone ?? null,
+        WorkPhone: body.WorkPhone ?? null,
+        CellPhone: body.CellPhone ?? null,
         OrganizationID: body.OrganizationID ?? null,
         FunctionalAreaID: body.FunctionalAreaID ?? null,
         InfluenceLevelID: body.InfluenceLevelID ?? null,
@@ -98,6 +118,10 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(rows[0], { status: 201 });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Database error';
+    const col = parseSqlNullError(message);
+    if (col) {
+      return NextResponse.json({ error: `Field '${col}' is required`, field: col }, { status: 400 });
+    }
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }

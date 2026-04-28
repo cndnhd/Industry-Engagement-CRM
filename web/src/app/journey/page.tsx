@@ -6,10 +6,13 @@ import type { JourneyLog, Organization, LookupItem } from '@/types';
 import {
   fetchJourneyLogs,
   createJourneyLog,
+  updateJourneyLog,
+  deleteJourneyLog,
   fetchOrganizations,
   loadLookup,
   resolveName,
 } from '@/lib/api';
+import JourneyEntryForm, { type JourneyFormData } from '@/components/journey/JourneyEntryForm';
 import { EnhancedDataGrid, type GridColumn } from '@/components/grid';
 import PageHeader from '@/components/ui/PageHeader';
 import Modal from '@/components/ui/Modal';
@@ -26,6 +29,8 @@ export default function JourneyPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showCreate, setShowCreate] = useState(false);
+  const [selected, setSelected] = useState<JourneyRow | null>(null);
+  const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState<Record<string, string>>({});
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
@@ -240,6 +245,51 @@ export default function JourneyPage() {
     }
   }
 
+  async function handleEditSave(data: JourneyFormData) {
+    if (!selected) return;
+    setSaving(true);
+    try {
+      const body: Record<string, unknown> = {
+        OrganizationID: data.OrganizationID || undefined,
+        JourneyStageID: data.JourneyStageID || undefined,
+        LogDate: data.LogDate || undefined,
+        EventType: data.EventType || undefined,
+        Outcome: data.Outcome || undefined,
+        NextStep: data.NextStep || undefined,
+        NextStepDate: data.NextStepDate || undefined,
+        Owner: data.Owner || undefined,
+        Notes: data.Notes || undefined,
+        Summary: data.Summary || undefined,
+      };
+      await updateJourneyLog(selected.JourneyLogID, body);
+      setSelected(null);
+      setEditing(false);
+      setToast({ message: 'Journey entry updated', type: 'success' });
+      await reload();
+    } catch (e) {
+      setToast({ message: e instanceof Error ? e.message : 'Failed to update entry', type: 'error' });
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleDelete() {
+    if (!selected) return;
+    if (!confirm('Are you sure you want to delete this journey log entry?')) return;
+    setSaving(true);
+    try {
+      await deleteJourneyLog(selected.JourneyLogID);
+      setSelected(null);
+      setEditing(false);
+      setToast({ message: 'Journey entry deleted', type: 'success' });
+      await reload();
+    } catch (e) {
+      setToast({ message: e instanceof Error ? e.message : 'Failed to delete entry', type: 'error' });
+    } finally {
+      setSaving(false);
+    }
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-32">
@@ -267,6 +317,7 @@ export default function JourneyPage() {
         data={logs}
         columns={columns}
         entityName="Journey Logs"
+        onRowClick={item => setSelected(item)}
         emptyMessage="No journey log entries found. Adjust filters or create a new entry."
       />
 
@@ -275,6 +326,52 @@ export default function JourneyPage() {
           {toast.message}
         </div>
       )}
+
+      <Modal isOpen={!!selected} onClose={() => { setSelected(null); setEditing(false); }} title={editing ? 'Edit Journey Entry' : 'Journey Entry Details'} size="xl">
+        {selected && !editing && (
+          <>
+            <div className="mb-4 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={handleDelete}
+                disabled={saving}
+                className="rounded-lg border border-red-200 bg-white px-4 py-2 text-sm font-medium text-red-600 hover:bg-red-50 transition-colors disabled:opacity-50"
+              >
+                Delete
+              </button>
+              <button
+                onClick={() => setEditing(true)}
+                className="rounded-lg border border-gray-200 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+              >
+                Edit
+              </button>
+            </div>
+            <dl className="grid grid-cols-2 gap-x-8 gap-y-4 text-sm">
+              <Detail label="Organization" value={selected.OrganizationName ?? orgMap.get(selected.OrganizationID) ?? '—'} />
+              <Detail label="Stage" value={selected.JourneyStageName ?? resolveName(journeyStages, selected.JourneyStageID)} />
+              <Detail label="Date" value={selected.LogDate ? new Date(selected.LogDate).toLocaleDateString() : undefined} />
+              <Detail label="Event Type" value={selected.EventType} />
+              <div className="col-span-2"><Detail label="Outcome" value={selected.Outcome} /></div>
+              <Detail label="Next Step" value={selected.NextStep} />
+              <Detail label="Next Step Date" value={selected.NextStepDate ? new Date(selected.NextStepDate).toLocaleDateString() : undefined} />
+              <Detail label="Owner" value={selected.Owner} />
+              <Detail label="Sentiment" value={selected.Sentiment} />
+              {selected.Notes && <div className="col-span-2"><Detail label="Notes" value={selected.Notes} /></div>}
+              {selected.Summary && <div className="col-span-2"><Detail label="Summary" value={selected.Summary} /></div>}
+            </dl>
+          </>
+        )}
+        {selected && editing && (
+          <JourneyEntryForm
+            entry={selected}
+            organizations={orgs}
+            journeyStages={journeyStages}
+            onSave={handleEditSave}
+            onCancel={() => setEditing(false)}
+            saving={saving}
+          />
+        )}
+      </Modal>
 
       <Modal isOpen={showCreate} onClose={() => { setShowCreate(false); setForm({}); }} title="New Journey Entry" size="xl">
         <div className="grid grid-cols-2 gap-x-6 gap-y-4">
@@ -338,6 +435,15 @@ export default function JourneyPage() {
           </button>
         </div>
       </Modal>
+    </div>
+  );
+}
+
+function Detail({ label, value }: { label: string; value?: string | null }) {
+  return (
+    <div>
+      <dt className="text-xs font-medium text-gray-500">{label}</dt>
+      <dd className="mt-0.5 text-gray-900">{value || '—'}</dd>
     </div>
   );
 }

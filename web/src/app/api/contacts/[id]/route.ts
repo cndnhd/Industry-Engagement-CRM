@@ -1,6 +1,11 @@
 import { query } from '@/lib/db';
 import { NextRequest, NextResponse } from 'next/server';
 
+function parseSqlNullError(message: string): string | null {
+  const m = message.match(/Cannot insert the value NULL into column '(\w+)'/);
+  return m ? m[1] : null;
+}
+
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params;
@@ -19,6 +24,14 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   try {
     const { id } = await params;
     const body = await req.json();
+
+    if (!body.FirstName?.trim()) {
+      return NextResponse.json({ error: 'First Name is required', field: 'FirstName' }, { status: 400 });
+    }
+    if (!body.LastName?.trim()) {
+      return NextResponse.json({ error: 'Last Name is required', field: 'LastName' }, { status: 400 });
+    }
+
     const rows = await query(
       `UPDATE dbo.Contacts SET
         FirstName = @FirstName,
@@ -26,6 +39,8 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
         Title = @Title,
         Email = @Email,
         Phone = @Phone,
+        WorkPhone = @WorkPhone,
+        CellPhone = @CellPhone,
         OrganizationID = @OrganizationID,
         FunctionalAreaID = @FunctionalAreaID,
         InfluenceLevelID = @InfluenceLevelID,
@@ -78,6 +93,8 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
         Title: body.Title ?? body.JobTitle ?? null,
         Email: body.Email ?? null,
         Phone: body.Phone ?? null,
+        WorkPhone: body.WorkPhone ?? null,
+        CellPhone: body.CellPhone ?? null,
         OrganizationID: body.OrganizationID ?? null,
         FunctionalAreaID: body.FunctionalAreaID ?? null,
         InfluenceLevelID: body.InfluenceLevelID ?? null,
@@ -126,6 +143,10 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     return NextResponse.json(rows[0]);
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Database error';
+    const col = parseSqlNullError(message);
+    if (col) {
+      return NextResponse.json({ error: `Field '${col}' is required`, field: col }, { status: 400 });
+    }
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }
