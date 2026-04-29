@@ -24,6 +24,8 @@ import {
   addOrganizationTag,
   removeOrganizationTag,
   setOrganizationSectors,
+  fetchOrganizationOrgTypes,
+  setOrganizationOrgTypes,
   createOrganizationScore,
   updateOrganizationScore,
   updateOrganization,
@@ -108,6 +110,7 @@ export default function OrganizationDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [orgTags, setOrgTags] = useState<TagItem[]>([]);
+  const [orgTypes, setOrgTypes] = useState<{ OrgTypeID: number; OrgTypeName: string }[]>([]);
 
   const [activeTab, setActiveTab] = useState<Tab>('contacts');
   const [tabData, setTabData] = useState<Record<string, unknown>>({});
@@ -127,9 +130,10 @@ export default function OrganizationDetailPage() {
   useEffect(() => {
     async function load() {
       try {
-        const [o, tags, ...lkResults] = await Promise.all([
+        const [o, tags, orgTypesResult, ...lkResults] = await Promise.all([
           fetchOrganization(orgId),
           fetchOrganizationTags(orgId),
+          fetchOrganizationOrgTypes(orgId),
           loadLookup('orgTypes'),
           loadLookup('ownershipTypes'),
           loadLookup('growthStages'),
@@ -145,6 +149,7 @@ export default function OrganizationDetailPage() {
         ]);
         setOrg(o);
         setOrgTags(tags);
+        setOrgTypes(orgTypesResult);
         setTabData((prev) => ({ ...prev, tags }));
         const names = [
           'orgTypes', 'ownershipTypes', 'growthStages', 'priorityLevels',
@@ -220,7 +225,7 @@ export default function OrganizationDetailPage() {
       State: org.State ?? '',
       HeadquartersLocation: org.HeadquartersLocation ?? '',
       RegionalFootprint: org.RegionalFootprint ?? '',
-      OrgTypeID: org.OrgTypeID ?? '',
+      editOrgTypeIds: orgTypes.map(ot => ot.OrgTypeID),
       OwnershipTypeID: org.OwnershipTypeID ?? '',
       GrowthStageID: org.GrowthStageID ?? '',
       PriorityLevelID: org.PriorityLevelID ?? '',
@@ -250,8 +255,9 @@ export default function OrganizationDetailPage() {
   async function handleSaveEdit() {
     setSaving(true);
     try {
-      const payload: Record<string, unknown> = { ...editForm };
-      ['OrgTypeID', 'OwnershipTypeID', 'GrowthStageID', 'PriorityLevelID', 'ContractorRoleID', 'RelationshipLevelID', 'PartnershipStageID'].forEach((k) => {
+      const { editOrgTypeIds: selectedOrgTypeIds, ...rest } = editForm;
+      const payload: Record<string, unknown> = { ...rest };
+      ['OwnershipTypeID', 'GrowthStageID', 'PriorityLevelID', 'ContractorRoleID', 'RelationshipLevelID', 'PartnershipStageID'].forEach((k) => {
         if (payload[k] === '' || payload[k] === undefined) payload[k] = null;
         else payload[k] = Number(payload[k]);
       });
@@ -263,7 +269,10 @@ export default function OrganizationDetailPage() {
       if (payload.NextActionDate === '') payload.NextActionDate = null;
 
       const updated = await updateOrganization(orgId, payload);
+      await setOrganizationOrgTypes(orgId, selectedOrgTypeIds as number[]);
+      const freshOrgTypes = await fetchOrganizationOrgTypes(orgId);
       setOrg(updated);
+      setOrgTypes(freshOrgTypes);
       setShowEdit(false);
       setToast({ message: 'Organization updated successfully', type: 'success' });
     } catch (err) {
@@ -359,7 +368,7 @@ export default function OrganizationDetailPage() {
           <DetailField label="Headquarters Location" value={org.HeadquartersLocation} />
           <DetailField label="Regional Footprint" value={org.RegionalFootprint} />
           <DetailField label="Email Pattern" value={org.EmailPattern} />
-          <DetailField label="Organization Type" value={resolveName(lookups.orgTypes ?? [], org.OrgTypeID)} />
+          <DetailField label="Organization Type" value={orgTypes.length > 0 ? orgTypes.map(ot => ot.OrgTypeName).join(', ') : '—'} />
           <DetailField label="Ownership Type" value={resolveName(lookups.ownershipTypes ?? [], org.OwnershipTypeID)} />
           <DetailField label="Growth Stage" value={resolveName(lookups.growthStages ?? [], org.GrowthStageID)} />
           <DetailField label="Contractor Role" value={resolveName(lookups.contractorRoles ?? [], org.ContractorRoleID)} />
@@ -507,7 +516,33 @@ export default function OrganizationDetailPage() {
               <input id="edit-primary-region" type="text" value={(editForm.PrimaryRegion as string) ?? ''} onChange={(e) => setEditForm((f) => ({ ...f, PrimaryRegion: e.target.value }))} className={INPUT_CLS} />
             </div>
 
-            <SelectField id="edit-org-type" label="Organization Type" value={editForm.OrgTypeID} onChange={(v) => setEditForm((f) => ({ ...f, OrgTypeID: v }))} items={lookups.orgTypes} />
+            <div className="sm:col-span-2">
+              <span className="text-sm font-medium text-gray-700">Organization Type(s)</span>
+              <div className="mt-1 flex flex-wrap gap-x-4 gap-y-2">
+                {(lookups.orgTypes ?? []).map((ot) => {
+                  const checked = ((editForm.editOrgTypeIds as number[]) ?? []).includes(ot.id);
+                  return (
+                    <label key={ot.id} className="inline-flex items-center gap-1.5 text-sm text-gray-700">
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={() =>
+                          setEditForm((f) => {
+                            const prev = (f.editOrgTypeIds as number[]) ?? [];
+                            return {
+                              ...f,
+                              editOrgTypeIds: checked ? prev.filter((x) => x !== ot.id) : [...prev, ot.id],
+                            };
+                          })
+                        }
+                        className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                      />
+                      {ot.name}
+                    </label>
+                  );
+                })}
+              </div>
+            </div>
             <SelectField id="edit-ownership" label="Ownership Type" value={editForm.OwnershipTypeID} onChange={(v) => setEditForm((f) => ({ ...f, OwnershipTypeID: v }))} items={lookups.ownershipTypes} />
             <SelectField id="edit-growth" label="Growth Stage" value={editForm.GrowthStageID} onChange={(v) => setEditForm((f) => ({ ...f, GrowthStageID: v }))} items={lookups.growthStages} />
             <SelectField id="edit-priority" label="Priority Level" value={editForm.PriorityLevelID} onChange={(v) => setEditForm((f) => ({ ...f, PriorityLevelID: v }))} items={lookups.priorityLevels} />

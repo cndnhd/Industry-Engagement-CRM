@@ -326,6 +326,12 @@ export const createJourneyLog = (body: Record<string, unknown>) => post<JourneyL
 export const updateJourneyLog = (id: number, body: Record<string, unknown>) => put<JourneyLog>(`/journey/${id}`, body);
 export const deleteJourneyLog = (id: number) => del(`/journey/${id}`);
 
+// Organization org types (multi-select)
+export const fetchOrganizationOrgTypes = (orgId: number) =>
+  get<{ OrgTypeID: number; OrgTypeName: string }[]>(`/organizations/${orgId}/org-types`);
+export const setOrganizationOrgTypes = (orgId: number, orgTypeIds: number[]) =>
+  put<void>(`/organizations/${orgId}/org-types`, { orgTypeIds });
+
 // Organization ecosystem
 export const fetchOrganizationEcosystem = (orgId: number) =>
   get<(EcosystemLink & { TypeName: string })[]>(`/organizations/${orgId}/ecosystem`);
