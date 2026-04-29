@@ -24,6 +24,11 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   try {
     const { id } = await params;
     const body = await req.json();
+
+    if (!body.EventType?.trim()) {
+      return NextResponse.json({ error: 'Event Type is required', field: 'EventType' }, { status: 400 });
+    }
+
     const rows = await query(
       `UPDATE dbo.JourneyLog SET
         OrganizationID = @OrganizationID,
@@ -43,9 +48,9 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
         id: Number(id),
         OrganizationID: body.OrganizationID,
         ContactID: body.ContactID ?? null,
-        JourneyStageID: body.JourneyStageID,
+        JourneyStageID: body.JourneyStageID ?? null,
         LogDate: body.LogDate,
-        EventType: body.EventType ?? null,
+        EventType: body.EventType,
         Outcome: body.Outcome ?? null,
         NextStep: body.NextStep ?? null,
         NextStepDate: body.NextStepDate ?? null,

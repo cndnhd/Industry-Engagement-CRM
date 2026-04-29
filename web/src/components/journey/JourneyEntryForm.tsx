@@ -88,7 +88,7 @@ export default function JourneyEntryForm({
     setForm(prev => ({ ...prev, [field]: value }));
   }
 
-  const canSave = form.OrganizationID && form.JourneyStageID && form.LogDate;
+  const canSave = form.OrganizationID && form.EventType && form.LogDate;
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -113,7 +113,7 @@ export default function JourneyEntryForm({
           </div>
         )}
         <div>
-          <label className="mb-1 block text-xs font-medium text-gray-700">Journey Stage *</label>
+          <label className="mb-1 block text-xs font-medium text-gray-700">Journey Stage</label>
           <select className={cls} value={form.JourneyStageID} onChange={e => set('JourneyStageID', e.target.value ? Number(e.target.value) : '')}>
             <option value="">Select stage…</option>
             {journeyStages.map(s => (
@@ -126,7 +126,7 @@ export default function JourneyEntryForm({
           <input type="date" className={cls} value={form.LogDate} onChange={e => set('LogDate', e.target.value)} />
         </div>
         <div>
-          <label className="mb-1 block text-xs font-medium text-gray-700">Event Type</label>
+          <label className="mb-1 block text-xs font-medium text-gray-700">Event Type *</label>
           <select className={cls} value={form.EventType} onChange={e => set('EventType', e.target.value)}>
             <option value="">Select type…</option>
             {EVENT_TYPES.map(t => <option key={t} value={t}>{t}</option>)}

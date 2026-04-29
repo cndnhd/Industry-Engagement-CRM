@@ -20,6 +20,11 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
+
+    if (!body.EventType?.trim()) {
+      return NextResponse.json({ error: 'Event Type is required', field: 'EventType' }, { status: 400 });
+    }
+
     const rows = await query(
       `INSERT INTO dbo.JourneyLog
         (OrganizationID, ContactID, JourneyStageID, LogDate, EventType, Outcome,
@@ -31,9 +36,9 @@ export async function POST(req: NextRequest) {
       {
         OrganizationID: body.OrganizationID,
         ContactID: body.ContactID ?? null,
-        JourneyStageID: body.JourneyStageID,
+        JourneyStageID: body.JourneyStageID ?? null,
         LogDate: body.LogDate,
-        EventType: body.EventType ?? null,
+        EventType: body.EventType,
         Outcome: body.Outcome ?? null,
         NextStep: body.NextStep ?? null,
         NextStepDate: body.NextStepDate ?? null,

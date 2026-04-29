@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useMemo, useCallback } from 'react';
 import Link from 'next/link';
-import { fetchOrganizations, createOrganization, loadLookup, resolveName } from '@/lib/api';
+import { fetchOrganizations, createOrganization, loadLookup, resolveName, setOrganizationOrgTypes } from '@/lib/api';
 import type { Organization, LookupItem } from '@/types';
 import PageHeader from '@/components/ui/PageHeader';
 import Badge from '@/components/ui/Badge';
@@ -40,6 +40,7 @@ export default function OrganizationsPage() {
   const [modalOpen, setModalOpen] = useState(false);
   const [form, setForm] = useState({ ...EMPTY_FORM });
   const [saving, setSaving] = useState(false);
+  const [selectedOrgTypes, setSelectedOrgTypes] = useState<number[]>([]);
 
   const loadData = useCallback(async () => {
     try {
@@ -295,7 +296,6 @@ export default function OrganizationsPage() {
         State: form.State || null,
         HeadquartersLocation: form.HeadquartersLocation || null,
         Notes: form.Notes || null,
-        OrgTypeID: form.OrgTypeID ? Number(form.OrgTypeID) : null,
         OwnershipTypeID: form.OwnershipTypeID ? Number(form.OwnershipTypeID) : null,
         GrowthStageID: form.GrowthStageID ? Number(form.GrowthStageID) : null,
         PriorityLevelID: form.PriorityLevelID ? Number(form.PriorityLevelID) : null,
@@ -317,9 +317,13 @@ export default function OrganizationsPage() {
         HQCountry: form.HQCountry || null,
         PrimaryRegion: form.PrimaryRegion || null,
       };
-      await createOrganization(body);
+      const createdOrg = await createOrganization(body);
+      if (selectedOrgTypes.length > 0) {
+        await setOrganizationOrgTypes(createdOrg.OrganizationID, selectedOrgTypes);
+      }
       setModalOpen(false);
       setForm({ ...EMPTY_FORM });
+      setSelectedOrgTypes([]);
       setLoading(true);
       await loadData();
     } catch (err) {
@@ -365,7 +369,7 @@ export default function OrganizationsPage() {
         showRollup={true}
       />
 
-      <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)} title="New Organization" size="xl">
+      <Modal isOpen={modalOpen} onClose={() => { setModalOpen(false); setSelectedOrgTypes([]); }} title="New Organization" size="xl">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <FormField label="Organization Name" required>
             {id => <input id={id} className={inputClass} value={form.OrganizationName} onChange={e => handleFormChange('OrganizationName', e.target.value)} />}
@@ -379,14 +383,27 @@ export default function OrganizationsPage() {
           <FormField label="Headquarters Location">
             {id => <input id={id} className={inputClass} value={form.HeadquartersLocation} onChange={e => handleFormChange('HeadquartersLocation', e.target.value)} />}
           </FormField>
-          <FormField label="Organization Type">
-            {id => (
-              <select id={id} className={selectClass} value={form.OrgTypeID} onChange={e => handleFormChange('OrgTypeID', e.target.value)}>
-                <option value="">Select…</option>
-                {(lookups.orgTypes ?? []).map(i => <option key={i.id} value={i.id}>{i.name}</option>)}
-              </select>
-            )}
-          </FormField>
+          <div className="md:col-span-2">
+            <FormField label="Organization Type">
+              {() => (
+                <div className="grid grid-cols-3 gap-2">
+                  {(lookups.orgTypes ?? []).map(ot => (
+                    <label key={ot.id} className="flex items-center gap-2 text-sm">
+                      <input
+                        type="checkbox"
+                        checked={selectedOrgTypes.includes(ot.id)}
+                        onChange={() => setSelectedOrgTypes(prev =>
+                          prev.includes(ot.id) ? prev.filter(id => id !== ot.id) : [...prev, ot.id]
+                        )}
+                        className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                      />
+                      {ot.name}
+                    </label>
+                  ))}
+                </div>
+              )}
+            </FormField>
+          </div>
           <FormField label="Ownership Type">
             {id => (
               <select id={id} className={selectClass} value={form.OwnershipTypeID} onChange={e => handleFormChange('OwnershipTypeID', e.target.value)}>
@@ -534,7 +551,7 @@ export default function OrganizationsPage() {
           </FormField>
         </div>
         <div className="mt-6 flex justify-end gap-3">
-          <button onClick={() => setModalOpen(false)} className="rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50 transition-colors">Cancel</button>
+          <button onClick={() => { setModalOpen(false); setSelectedOrgTypes([]); }} className="rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50 transition-colors">Cancel</button>
           <button onClick={handleSave} disabled={saving || !form.OrganizationName.trim()} className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-blue-700 disabled:opacity-50 transition-colors">
             {saving ? 'Saving...' : 'Create Organization'}
           </button>
